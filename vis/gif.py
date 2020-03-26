@@ -60,13 +60,14 @@ def plot_map(data, folder, i, bounds, time):
     data.plot(
         column = 'ap_count',
         markersize=50,
-        cmap='RdYlBu',
+        cmap='RdYlBu_r',
         norm=matplotlib.colors.Normalize(vmin=0, vmax=1500),
         legend=True,
         edgecolors='b',
         ax=ax
         )
 
+    plt.legend(title="Location of Counted WiFi APs")
     plt.title('{}'.format(time), fontsize=16)
     ctx.add_basemap(ax, crs=data.crs)
     filename = '{}'.format(i)

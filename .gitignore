@@ -129,6 +129,9 @@ dmypy.json
 .pyre/
 
 # data
+/data/employment/*
+/data/shapes/*
+/data/daytime_employment/*
 /results/*
 /vis/images/*
 /vis/movies/*
