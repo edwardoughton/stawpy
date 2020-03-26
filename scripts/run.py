@@ -11,6 +11,7 @@ import csv
 import configparser
 import time
 import pandas as pd
+import geopandas as gpd
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
@@ -98,6 +99,7 @@ def merge_data(gps_trajectories, ap_data):
 
     """
     output = []
+    shapes = []
 
     times = sorted((time.strptime(d['time'], "%H:%M:%S") for d in gps_trajectories), reverse=False)#[:4]
 
@@ -127,7 +129,7 @@ def merge_data(gps_trajectories, ap_data):
                 ))
 
             if t1 < gps_t < t2:
-                print(t1, gps_t, t2)
+
                 lat = item['lat']
                 lon = item['lon']
 
@@ -154,7 +156,19 @@ def merge_data(gps_trajectories, ap_data):
                     'ap_count': ap_count,
                 })
 
-    return output
+                shapes.append({
+                    'type': 'feature',
+                    'geometry': {
+                        'type': 'Point',
+                        'coordinates': [lon, lat]
+                    },
+                    'properties': {
+                        'gps_time': gps_t,
+                        'ap_count': ap_count,
+                    }
+                })
+
+    return output, shapes
 
 
 if __name__ == "__main__":
@@ -169,9 +183,13 @@ if __name__ == "__main__":
 
     print('Merging data')
     path = os.path.join(BASE_PATH, 'test_drive_1.csv')
-    all_data = merge_data(gps_trajectories, ap_data)
+    all_data, shapes = merge_data(gps_trajectories, ap_data)
 
     print('Writing data')
     path = os.path.join(BASE_PATH, '..', 'results', 'results.csv')
     data_to_write = pd.DataFrame(all_data)
     data_to_write.to_csv(path, index=False)
+
+    path = os.path.join(BASE_PATH, '..', 'results')
+    data_to_write = gpd.GeoDataFrame.from_features(shapes, crs='epsg:4326')
+    data_to_write.to_file(os.path.join(path, 'results.shp'))
