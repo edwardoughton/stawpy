@@ -24,9 +24,13 @@ Activate it (run this each time you switch projects):
 
     conda activate stawpy
 
-First, install optional packages:
+Install required packages:
 
-    conda install pandas
+    conda install pandas matplotlib imagio contextily
+
+For `pygifsicle` you need to pip install.
+
+    pip install pygifsicle
 
 Then run this script with the test data:
 
