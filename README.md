@@ -1,7 +1,7 @@
 # stawpy
 Spatio-Temporal Analytics from Wardriving in Python
 
-###Description
+### Description
 This repo provides code to analyze data collected from 'wardriving'.
 
 According to [Wikipedia](https://en.wikipedia.org/wiki/Wardriving):
@@ -14,7 +14,7 @@ The etymology of the name originates from wardialing, a method popularized by a 
 played by Matthew Broderick in the film WarGames, and named after that film. War dialing
 consists of dialing every phone number in a specific sequence in search of modems.
 
-###Setup using conda
+### Setup using conda
 Using Anaconda to handle packages and virtual environments, you can first create a conda
 environment called stawpy:
 
