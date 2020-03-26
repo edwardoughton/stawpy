@@ -28,9 +28,9 @@ Install required packages:
 
     conda install pandas matplotlib imagio contextily
 
-For `pygifsicle` you need to pip install.
+For `pygifsicle` and `tqdm` you need to pip install.
 
-    pip install pygifsicle
+    pip install pygifsicle tqdm
 
 Then run this script with the test data:
 
