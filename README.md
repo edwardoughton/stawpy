@@ -26,7 +26,7 @@ Activate it (run this each time you switch projects):
 
 First, install optional packages:
 
-    conda install geopandas
+    conda install pandas
 
 Then run this script with the test data:
 
