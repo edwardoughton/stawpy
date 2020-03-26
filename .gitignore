@@ -131,7 +131,7 @@ dmypy.json
 # data
 /data/employment/*
 /data/shapes/*
-/data/employment/*
+/data/daytime_employment/*
 /results/*
 /vis/images/*
 /vis/movies/*
