@@ -1,5 +1,5 @@
-# stawpy
-Spatio-Temporal Analytics from Wardriving in Python
+# strawpy
+Spatio-TempoRal Analytics for Wardriving using Python
 
 ### Description
 This repo provides code to analyze data collected from 'wardriving'.
