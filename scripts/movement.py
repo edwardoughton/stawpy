@@ -10,199 +10,104 @@ import os
 import sys
 import configparser
 import csv
-import fiona
-import time
-
-from shapely.geometry import shape, Point, LineString, mapping
-from shapely.ops import  cascaded_union
-from tqdm import tqdm
-
-from rtree import index
-
-from collections import OrderedDict
+import pandas as pd
+import geopandas as gpd
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
+RESULTS_PATH = CONFIG['file_locations']['results']
 
-#####################################
-# READ MAIN DATA
-#####################################
-
-
-def read_area_shapes(path_ew, path_s):
+def read_csv(path):
     """
-    Read in all area shapes.
+    Function to read a csv into a pandas dataframe.
 
     """
-    output = []
-
-    with fiona.open(path_ew, 'r') as reader:
-        for lsoa in reader:
-            output.append({
-                'type': lsoa['type'],
-                'geometry': lsoa['geometry'],
-                'properties': {
-                    'code': lsoa['properties']['LSOA11CD'],
-                    # 'LSOA11NM': lsoa['properties']['LSOA11NM'],
-                }
-            })
-
-    with fiona.open(path_s, 'r') as reader:
-        for datazone in reader:
-            output.append({
-                'type': datazone['type'],
-                'geometry': datazone['geometry'],
-                'properties': {
-                    'code': datazone['properties']['DataZone'],
-                    # 'LSOA11NM': lsoa['properties']['LSOA11NM'],
-                }
-            })
+    output = pd.read_csv(path)
 
     return output
 
 
-def load_employment_data(paths):
+def merge_data(population, employment):
     """
-    Load BRES employment data for areas.
-
-    """
-    output = []
-
-    for path in paths:
-        with open(path, 'r') as source:
-            reader = csv.DictReader(source)
-            for line in reader:
-                output.append({
-                    'code': line['code'],
-                    # 'name': line['name'],
-                    'count': line['count'],
-                })
-
-    return output
-
-
-def combine_data(areas, employment):
-    """
-    Combine areas and employment data.
+    Merge population and employment dataframes.
 
     """
-    output = []
+    data = population.merge(employment, left_on='id', right_on='StrSect')
 
-    for item in employment:
-        for area in areas:
-            if item['code'] == area['properties']['code']:
-                geom = shape(area['geometry'])
-                output.append({
-                    'type': area['type'],
-                    'geometry': mapping(geom.representative_point()),
-                    'properties': {
-                        'code': area['properties']['code'],
-                        # 'LSOA11NM': area['properties']['LSOA11NM'],
-                        'employment': item['count']
-                    }
-                })
-
-    return output
+    return data
 
 
-def read_postcode_sectors(path):
+def get_area(path, data):
     """
-    Read all postcode sector shapes.
+    Load in postcode sector information.
 
     """
-    with fiona.open(path, 'r') as pcd_sector_shapes:
-        return [pcd for pcd in pcd_sector_shapes]
+    pcd_sectors = gpd.read_file(path, crs='epsg:27700')
+
+    pcd_sectors['area_km2'] = pcd_sectors['geometry'].area / 1e6
+
+    pcd_sectors = pcd_sectors[['StrSect', 'area_km2']]
+
+    data = data.merge(pcd_sectors, left_on='StrSect', right_on='StrSect')
+
+    return data
 
 
-def add_employment_to_pcd_sectors(postcode_sectors, areas):
+def add_metrics(data):
     """
-    Add the LAD indicator(s) to the relevant postcode sector.
+
+    Get the following:
+
+        - Population density
+        - Employment density
+        - Daytime change (%)
+        - Maximum number of people/users
+        - Maximum density of people/users
+        - Maximum increase in users (%)
 
     """
-    lut = []
+    data['pop_density_km2'] = data['population'] / data['area_km2']
 
-    idx = index.Index(
-        (i, shape(postcode_sector['geometry']).bounds, postcode_sector)
-        for i, postcode_sector in enumerate(postcode_sectors)
+    data['emp_density_km2'] = data['employment'] / data['area_km2']
+
+    data['daytime_change_perc'] = (
+        (data['employment'] - data['population']) /
+        data['population'] * 100
     )
 
-    for area in tqdm(areas):
-        employment = 0
-        for n in idx.intersection((shape(area['geometry']).bounds), objects=True):
-            postcode_sector_centroid = shape(area['geometry']).centroid
-            lad_shape = shape(n.object['geometry'])
-            if postcode_sector_centroid.intersects(lad_shape):
-                lut.append({
-                    'area': area['properties']['code'],
-                    'postcode_sector': n.object['properties']['StrSect'],
-                    'employment': int(area['properties']['employment']),
-                    })
+    data['max_users'] = data['population'] + data['employment']
 
-    output = []
+    data['max_users_density'] =  data['max_users'] / data['area_km2']
 
-    for postcode_sector in postcode_sectors:
-        employment = 0
-        for item in lut:
-            if postcode_sector['properties']['StrSect'] == item['postcode_sector']:
-                employment += item['employment']
-        output.append({
-            'StrSect': postcode_sector['properties']['StrSect'],
-            'employment': employment,
-        })
+    data['max_increase_perc'] = (
+        (data['max_users'] - data['population']) /
+        data['population'] * 100
+    )
 
-    return output
-
-
-def csv_writer(data, directory, filename):
-    """
-    Write data to a CSV file path
-
-    """
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    fieldnames = []
-    for name, value in data[0].items():
-        fieldnames.append(name)
-
-    with open(os.path.join(directory, filename), 'w') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames, lineterminator = '\n')
-        writer.writeheader()
-        writer.writerows(data)
+    return data
 
 
 if __name__ == "__main__":
 
-    start = time.time()
-
-    directory_intermediate = os.path.join(BASE_PATH, 'daytime_employment')
-    print('Output directory will be {}'.format(directory_intermediate))
-
-    print('Loading area shapes')
-    area_shapes_ew = os.path.join(BASE_PATH, 'shapes', 'lsoas_ew_27700.shp')
-    area_shapes_s = os.path.join(BASE_PATH, 'shapes', 'SG_DataZone_Bdry_2011.shp')
-    areas = read_area_shapes(area_shapes_ew, area_shapes_s)#[:2000]
+    print('Loading population data')
+    path = os.path.join(BASE_PATH, 'population', 'postcode_sectors.csv')
+    population = read_csv(path)
 
     print('Loading employment data')
-    paths = [
-        os.path.join(BASE_PATH, 'employment', 'employment_ew.csv'),
-        os.path.join(BASE_PATH, 'employment', 'employment_s.csv')
-        ]
-    employment = load_employment_data(paths)#[:2000]
+    path = os.path.join(BASE_PATH, 'daytime_employment', 'daytime_employment.csv')
+    employment = read_csv(path)
 
-    print('Combine areas with employment data')
-    areas = combine_data(areas, employment)
+    print('Merging data')
+    data = merge_data(population, employment)
 
-    print('Loading postcode sector shapes')
+    print('Adding area')
     path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
-    postcode_sectors = read_postcode_sectors(path)#[:2000]
+    data = get_area(path, data)
 
-    print('Adding employment to postcode sectors')
-    postcode_sectors = add_employment_to_pcd_sectors(postcode_sectors, areas)
+    print('Add metrics')
+    data = add_metrics(data)
 
-    print('Writing postcode sectors to .csv')
-    csv_writer(postcode_sectors, directory_intermediate, 'daytime_employment.csv')
-
-    end = time.time()
-    print('time taken: {} minutes'.format(round((end - start) / 60,2)))
+    print('Writing data')
+    path = os.path.join(RESULTS_PATH, 'pcd_sector_movement.csv')
+    data.to_csv(path, index=False)
