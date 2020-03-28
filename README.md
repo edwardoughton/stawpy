@@ -30,7 +30,7 @@ Install required packages:
 
 For `pygifsicle` and `tqdm` you need to pip install.
 
-    pip install pygifsicle tqdm
+    pip install pygifsicle tqdm lxml pykml
 
 Then run this script with the test data:
 
