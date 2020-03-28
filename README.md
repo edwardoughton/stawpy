@@ -26,7 +26,7 @@ Activate it (run this each time you switch projects):
 
 Install required packages:
 
-    conda install pandas matplotlib imagio contextily
+    conda install pandas matplotlib imagio contextily seaborn
 
 For `pygifsicle` and `tqdm` you need to pip install.
 
