@@ -76,16 +76,29 @@ def add_metrics(data):
         data['population'] * 100
     )
 
-    data['max_users'] = data['population'] + data['employment']
+    data['max_persons'] = data['population'] + data['employment']
 
-    data['max_users_density'] =  data['max_users'] / data['area_km2']
+    data['max_persons_density'] =  data['max_persons'] / data['area_km2']
 
     data['max_increase_perc'] = (
-        (data['max_users'] - data['population']) /
+        (data['max_persons'] - data['population']) /
         data['population'] * 100
     )
 
+    data['geotype'] = data.apply(geotype, axis=1)
+
     return data
+
+
+def geotype(row):
+
+    if row['pop_density_km2'] > 7959:
+        val = 'Urban'
+    elif 7959 > row['pop_density_km2'] > 112:
+        val = 'Suburban'
+    else:
+        val = 'Rural'
+    return val
 
 
 if __name__ == "__main__":
