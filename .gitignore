@@ -133,6 +133,7 @@ dmypy.json
 /data/employment/*
 /data/shapes/*
 /data/daytime_employment/*
+/data/wigle/*
 /results/*
 /vis/images/*
 /vis/movies/*
