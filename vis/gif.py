@@ -17,6 +17,7 @@ import contextily as ctx
 import imageio
 import matplotlib.pyplot as plt
 import matplotlib.colors
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pygifsicle
 
 CONFIG = configparser.ConfigParser()
@@ -25,26 +26,8 @@ BASE_PATH = CONFIG['file_locations']['base_path']
 RESULTS_PATH = CONFIG['file_locations']['results']
 VIS_PATH = CONFIG['file_locations']['vis']
 
-def load_results(path):
-    """
 
-    """
-    output = []
-
-    with open(path, 'r') as source:
-        reader = csv.DictReader(source)
-        for item in reader:
-            output.append({
-                'time': item['gps_time'],
-                'lat': item['lat'],
-                'lon': item['lon'],
-                'ap_count': item['ap_count']
-            })
-
-    return output
-
-
-def plot_map(data, folder, i, bounds, time):
+def plot_map(data, folder, i, bounds, time, max_aps, min_aps):
 
     fig, ax = plt.subplots(figsize=(8, 10))
 
@@ -52,6 +35,7 @@ def plot_map(data, folder, i, bounds, time):
     plt.autoscale(tight=True)
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
+    ax.set_aspect('auto')
 
     #(minx, miny, maxx, maxy)
     ax.set_xlim(bounds[0], bounds[2])
@@ -61,21 +45,24 @@ def plot_map(data, folder, i, bounds, time):
         column = 'ap_count',
         markersize=50,
         cmap='RdYlBu_r',
-        norm=matplotlib.colors.Normalize(vmin=0, vmax=1500),
+        norm=matplotlib.colors.Normalize(vmin=min_aps, vmax=max_aps),
         legend=True,
         edgecolors='b',
         ax=ax
         )
 
-    plt.legend(title="Location of Counted WiFi APs")
-    plt.title('{}'.format(time), fontsize=16)
+    # plt.colorbar(label='signal_str')
+    plt.legend(title="Signal Strength of Counted WiFi APs")
+    plt.title('{}'.format((str(time))), fontsize=16)
     ctx.add_basemap(ax, crs=data.crs)
-    filename = '{}'.format(i)
+    plt.tight_layout(h_pad=1)
+
+    filename = '{}.png'.format(i)
     path = os.path.join(folder, filename)
     plt.savefig(path, pad_inches=0, bbox_inches='tight')
     plt.close()
 
-    return print('Completed {}'.format(i))
+    return print('Completed {}'.format(time))
 
 
 def generate_gif(path_gif, path_images):
@@ -84,8 +71,12 @@ def generate_gif(path_gif, path_images):
 
     filenames = glob.glob(os.path.join(path_images,'*.png'))
 
-    for filename in filenames:
-        images.append(imageio.imread(filename))
+    for i in range(0, len([f for f in filenames])):
+        for filename in filenames:
+            base = os.path.basename(filename)[:-4]
+            if i == int(base):
+
+                images.append(imageio.imread(filename))
 
     imageio.mimsave(os.path.join(path_gif), images)
 
@@ -94,34 +85,45 @@ def generate_gif(path_gif, path_images):
 
 if __name__ == '__main__':
 
-    path = os.path.join(RESULTS_PATH, 'results.shp')
-    shapes = gpd.read_file(path)
+    # path = os.path.join(RESULTS_PATH, 'results.shp')
+    path = os.path.join(BASE_PATH, '20200328-00032.shp')
+    shapes = gpd.read_file(path)#[:10]
+    shapes = shapes.sort_values('time')
 
-    lon = []
-    lat = []
+    shapes = shapes[['geometry', 'time', 'signal_str', 'ap_count']]
+    shapes['signal_str'] = pd.to_numeric(shapes['signal_str'])
 
-    for idx, point in shapes.iterrows():
-        lon.append(point['geometry'].x)
-        lat.append(point['geometry'].y)
+    max_aps = shapes.ap_count.max()
+    min_aps = shapes.ap_count.min()
 
-    poly_geom = Polygon(zip(lon, lat)).bounds
+    # for item in shapes:
+    #     print(item)
+    #     unique_times.add(item['time'])
+    # lon = []
+    # lat = []
+
+    # for idx, point in shapes.iterrows():
+    #     lon.append(point['geometry'].x)
+    #     lat.append(point['geometry'].y)
+
+    # bounds = Polygon(zip(lon, lat)).bounds
+    bounds = (0.11103, 52.2014, 0.14223, 52.22058)
 
     path_images = os.path.join(VIS_PATH, 'images')
     path_gif = os.path.join(VIS_PATH, 'movies', 'movie.gif')
 
-    for i in range(1, len(shapes)+1):
+    to_plot = []
+    for idx, unique_time in enumerate(shapes.time.unique()):
 
-        to_plot = shapes[0:i]
+        print('working on {}'.format(unique_time))
 
-        time = to_plot['gps_time'].values
+        if idx > 0:
+            current_time = shapes.loc[shapes['time'] == unique_time]
+            to_plot = to_plot.append([current_time])
+        else:
+            to_plot = shapes.loc[shapes['time'] == unique_time]
 
-        time = '{}:{}:{}'.format(
-            time[i-1].split(', ')[0],
-            time[i-1].split(', ')[1],
-            time[i-1].split(', ')[2]
-        )
-
-        plot_map(to_plot, path_images, i, poly_geom, time)
+        plot_map(to_plot, path_images, idx, bounds, unique_time, max_aps, min_aps)
 
     generate_gif(path_gif, path_images)
 
