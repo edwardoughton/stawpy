@@ -106,18 +106,18 @@ def aggregate(data):
 if __name__ == '__main__':
 
     print('Loading .kml data')
-    path = os.path.join(BASE_PATH, '20200328-00032.kml')
+    path = os.path.join(BASE_PATH, 'wigle', '20200328-00032.kml')
     data = load_data(path)
 
     print('Aggregating data')
     data = aggregate(data)
 
     print('Exporting as .csv')
-    data.to_csv(os.path.join(BASE_PATH, '20200328-00032.csv'), index=False)
+    data.to_csv(os.path.join(BASE_PATH, 'wigle', '20200328-00032.csv'), index=False)
 
     print('Converting to geopandas geodataframe')
     data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data.lon, data.lat))
-    path = os.path.join(BASE_PATH, '20200328-00032.shp')
+    path = os.path.join(BASE_PATH, 'wigle', '20200328-00032.shp')
 
     print('Exporting as .shp')
     data.to_file(path, crs='epsg:4326', index=False)

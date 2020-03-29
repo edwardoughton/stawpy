@@ -85,9 +85,8 @@ def generate_gif(path_gif, path_images):
 
 if __name__ == '__main__':
 
-    # path = os.path.join(RESULTS_PATH, 'results.shp')
-    path = os.path.join(BASE_PATH, '20200328-00032.shp')
-    shapes = gpd.read_file(path)#[:10]
+    path = os.path.join(BASE_PATH, 'wigle', '20200328-00032.shp')
+    shapes = gpd.read_file(path)
     shapes = shapes.sort_values('time')
 
     shapes = shapes[['geometry', 'time', 'signal_str', 'ap_count']]
@@ -96,17 +95,6 @@ if __name__ == '__main__':
     max_aps = shapes.ap_count.max()
     min_aps = shapes.ap_count.min()
 
-    # for item in shapes:
-    #     print(item)
-    #     unique_times.add(item['time'])
-    # lon = []
-    # lat = []
-
-    # for idx, point in shapes.iterrows():
-    #     lon.append(point['geometry'].x)
-    #     lat.append(point['geometry'].y)
-
-    # bounds = Polygon(zip(lon, lat)).bounds
     bounds = (0.11103, 52.2014, 0.14223, 52.22058)
 
     path_images = os.path.join(VIS_PATH, 'images')
