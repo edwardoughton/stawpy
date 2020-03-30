@@ -60,4 +60,8 @@ response = requests.get('https://api.wigle.net//api//v2//network//search',
 #             f.write(response.raw.read())
 #             print(f'Saved to {target}')
 
+# response = requests.get(url)
+# if response.status_code == 200:
+#   response_data = response.json()
+
 print(response.text)
