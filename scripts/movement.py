@@ -124,3 +124,12 @@ if __name__ == "__main__":
     print('Writing data')
     path = os.path.join(RESULTS_PATH, 'pcd_sector_movement.csv')
     data.to_csv(path, index=False)
+
+    print('Load shapes')
+    path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
+    shapes = gpd.read_file(path, crs='epsg:27700')
+
+    shapes = shapes.merge(data, left_on='StrSect', right_on='StrSect')
+    path = os.path.join(RESULTS_PATH, 'london.shp')
+    london = shapes.loc[shapes['Sprawl'] == 'London']
+    london.to_file(path, crs='epsg:27700')
