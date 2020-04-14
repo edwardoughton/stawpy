@@ -14,6 +14,7 @@ import pandas as pd
 import geopandas as gpd
 import lxml
 from pykml import parser
+import glob
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
@@ -43,12 +44,12 @@ def load_data(path):
         signal_strength = str(pm.description).split('\n')[3]
         signal_strength = signal_strength.split(' ')[1]
 
-        if date == '2020-03-28':
-            plnm.append(plnm1.text)
-            cordi.append(plcs1.text)
-            dates.append(date)
-            times.append(time)
-            signal_strengths.append(signal_strength)
+        # if date == '2020-03-28':
+        plnm.append(plnm1.text)
+        cordi.append(plcs1.text)
+        dates.append(date)
+        times.append(time)
+        signal_strengths.append(signal_strength)
 
     data = pd.DataFrame()
     data['place_name'] = plnm
@@ -105,21 +106,28 @@ def aggregate(data):
 
 if __name__ == '__main__':
 
-    print('Loading .kml data')
-    path = os.path.join(BASE_PATH, 'wigle', '20200328-00032.kml')
-    data = load_data(path)
+    files = os.listdir(os.path.join(BASE_PATH, 'wigle', '2020_4_7'))
 
-    print('Aggregating data')
-    data = aggregate(data)
+    for filename in files:
 
-    print('Exporting as .csv')
-    data.to_csv(os.path.join(BASE_PATH, 'wigle', '20200328-00032.csv'), index=False)
+        print('Working on {}'.format(filename))
 
-    print('Converting to geopandas geodataframe')
-    data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data.lon, data.lat))
-    path = os.path.join(BASE_PATH, 'wigle', '20200328-00032.shp')
+        print('Loading .kml data')
+        path = os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename)
+        data = load_data(path)
 
-    print('Exporting as .shp')
-    data.to_file(path, crs='epsg:4326', index=False)
+        print('Aggregating data')
+        data = aggregate(data)
 
-    print('Completed conversion to .kml')
+        print('Exporting as .csv')
+        filename = filename[:-4]
+        data.to_csv(os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename + '.csv'), index=False)
+
+        print('Converting to geopandas geodataframe')
+        data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data.lon, data.lat))
+        path = os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename + '.shp')
+
+        print('Exporting as .shp')
+        data.to_file(path, crs='epsg:4326', index=False)
+
+        print('Completed conversion to .kml')
