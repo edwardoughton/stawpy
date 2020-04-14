@@ -34,16 +34,13 @@ if __name__ == '__main__':
 
     path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
     pcd_sector_shapes = gpd.read_file(path)
-    # pcd_sector_shapes.crs = 'epsg:27700'
-    # pcd_sector_shapes = pcd_sector_shapes.to_crs('epsg:4326')
+
 
     for locale in locales:
 
         print('Working on {}'.format(locale))
 
         boundaries = pcd_sector_shapes.loc[pcd_sector_shapes['Locale'] == locale]
-        # boundaries.crs = 'epsg:27700'
-        # boundaries = boundaries.to_crs('epsg:4326')
 
         for idx, boundary in boundaries.iterrows():
 
@@ -62,42 +59,6 @@ if __name__ == '__main__':
             #minx, miny, maxx, maxy
             geom = boundary['geometry']
             minx, miny, maxx, maxy = geom.bounds
-
-            # id_number = 0
-
-            # x_axis = np.linspace(
-            #     minx, maxx, num=(
-            #         int(math.sqrt(geom.area) / (math.sqrt(geom.area)/10))
-            #         )
-            #     )
-            # y_axis = np.linspace(
-            #     miny, maxy, num=(
-            #         int(math.sqrt(geom.area) / (math.sqrt(geom.area)/10))
-            #         )
-            #     )
-
-            # sample_points = []
-
-            # xv, yv = np.meshgrid(x_axis, y_axis, sparse=False, indexing='ij')
-            # for i in range(len(x_axis)):
-            #     for j in range(len(y_axis)):
-            #         receiver = Point((xv[i,j], yv[i,j]))
-            #         indoor_outdoor_probability = np.random.rand(1,1)[0][0]
-            #         if geom.contains(receiver):
-            #             sample_points.append({
-            #                 'type': "Feature",
-            #                 'geometry': {
-            #                     "type": "Point",
-            #                     "coordinates": [xv[i,j], yv[i,j]],
-            #                 },
-            #                 'properties': {
-            #                 }
-            #             })
-            #             id_number += 1
-
-            #         else:
-            #             pass
-
 
             sample_points = []
 
@@ -119,16 +80,6 @@ if __name__ == '__main__':
                 })
 
             print('Number of sample points is {}'.format(len(sample_points)))
-
-            # path = os.path.join(folder, 'boundary.shp')
-            # # print(boundary['geometry'])
-            # boundary_gdf = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary))
-            # # print(boundary_gdf)
-            # boundary_gdf.to_file(path, crs='epsg:4326')
-
-            # print('Getting boundary')
-            # boundary = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'] == pcd_sector]
-
             print('Generating results')
 
             results = []
@@ -151,8 +102,6 @@ if __name__ == '__main__':
                 gdf.crs = 'epsg:27700'
                 gdf = gdf.to_crs('epsg:4326')
 
-                # gdf.to_file(os.path.join(folder, str(idx) + '.shp'))
-
                 bbox = gdf['geometry'].bounds
 
                 response = requests.get('https://api.wigle.net//api//v2//network//search',
@@ -169,7 +118,7 @@ if __name__ == '__main__':
                         'resultsPerPage': 1000,
                     }
                 )
-
+                # fields:
                 # # {'trilat': 51.51363373, 'trilong': -0.15803051, 'ssid': None, 'qos': 0,
                 # # 'transid': '20200128-00000', 'firsttime': '2020-01-28T17:00:00.000Z',
                 # # 'lasttime': '2020-01-28T09:00:00.000Z', 'lastupdt': '2020-01-28T09:00:00.000Z',
@@ -189,8 +138,6 @@ if __name__ == '__main__':
             output = pd.DataFrame(results)
             output = output.drop_duplicates(subset=['netid'])
 
-            # date = str(datetime.now(tz=None))[:10]
-            # time = str(datetime.now(tz=None)).split(' ')[1][:5]
             random_number = round(random.uniform(0,1e9))
             filename = str('data_{}.csv'.format(random_number))
 
