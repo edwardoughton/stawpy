@@ -28,6 +28,17 @@ if __name__ == '__main__':
         'City of London'
     ]
 
+    pcd_sectors = [
+        'N1C4', #King's Cross Station
+        'NW12', #Euston Station
+        'SE18', #Waterloo Station
+        'W1C1', #Oxford Street
+        'W1C2', #Oxford Street
+        'W1K5', #Bond Street
+        'E144', #Canary Wharf
+        'E145', #Canary Wharf
+    ]
+
     results = os.path.join(BASE_PATH, '..', 'results')
     if not os.path.exists(results):
         os.makedirs(results)
@@ -36,18 +47,18 @@ if __name__ == '__main__':
     pcd_sector_shapes = gpd.read_file(path)
 
 
-    for locale in locales:
+    for pcd_sector in pcd_sectors:
 
-        print('Working on {}'.format(locale))
+        # print('Working on {}'.format(locale))
 
-        boundaries = pcd_sector_shapes.loc[pcd_sector_shapes['Locale'] == locale]
+        # boundaries = pcd_sector_shapes.loc[pcd_sector_shapes['Locale'] == locale]
 
-        for idx, boundary in boundaries.iterrows():
+        for idx, boundary in pcd_sector_shapes.iterrows():
 
-            pcd_sector = boundary['StrSect']
+            pcd_sector_shape_id = boundary['StrSect']
 
-            # if not pcd_sector == 'W1C1':
-            #     continue
+            if not pcd_sector == pcd_sector_shape_id:
+                continue
 
             print('Working on {}'.format(pcd_sector))
 
