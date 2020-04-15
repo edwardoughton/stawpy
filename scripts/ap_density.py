@@ -105,12 +105,14 @@ def calculate_density(graph, all_data, delivery_point_density_km2):
 
         for idx, row in intersecting.iterrows():
 
-            if row['ap_id'] in seen:
+            row['coords'] = (row['trilong'], row['trilat'])
+
+            if row['coords'] in seen:
                 continue
             else:
-                count.append(row['ap_id'])
+                count.append(row['coords'])
 
-            seen.add(row['ap_id'])
+            seen.add(row['coords'])
 
         geom = poly['geometry'].buffer(100)
 
@@ -143,7 +145,25 @@ def plot_results(data, pcd_sector):
 
 if __name__ == '__main__':
 
-    pcd_sectors = ['N78']
+    pcd_sectors = [
+        'EC1M3',
+        'EC1N2',
+        'EC1N6',
+        'EC1N7',
+        'EC1N8',
+        'EC1R5',
+        'EC4A1',
+        'EC4A2',
+        'EC4A3',
+        'EC4Y0',
+        'EC4Y1',
+        'EC4Y7',
+        'EC4Y8',
+        'EC4Y9',
+        'N1C4',
+        'NW15',
+        # 'N78'
+    ]
 
     results = os.path.join(BASE_PATH, '..', 'results')
     if not os.path.exists(results):
@@ -154,7 +174,7 @@ if __name__ == '__main__':
     pcd_sector_shapes.crs = 'epsg:27700'
     pcd_sector_shapes = pcd_sector_shapes.to_crs('epsg:27700')
 
-    files = os.listdir(os.path.join(BASE_PATH, 'wigle', '2020_4_7'))
+    # files = os.listdir(os.path.join(BASE_PATH, 'wigle', '2020_4_7'))
 
     for pcd_sector in pcd_sectors:
 
@@ -167,11 +187,29 @@ if __name__ == '__main__':
         boundary = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'] == pcd_sector]
         boundary.to_file(os.path.join(folder, 'boundary.shp'), crs='epsg:27700')
 
-        collected_data = os.path.join(folder, 'collected_points.shp')
-        if not os.path.exists(collected_data):
-            all_data = subset_points(files, boundary)
-        else:
-            all_data = gpd.read_file(collected_data)
+        # # collected_data = os.path.join(folder, 'collected_points.shp')
+        # # if not os.path.exists(collected_data):
+        # #     all_data = subset_points(files, boundary)
+        # # else:
+        # #     all_data = gpd.read_file(collected_data)
+
+        # collected_data = os.path.join(folder, 'collected_points.shp')
+        # if not os.path.exists(collected_data):
+        path = os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector, 'data_547486008')
+        all_files = os.listdir(os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector))
+        files = []
+        for file_name in all_files:
+            files.append(
+                os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector, file_name)
+            )
+        all_data = pd.concat((pd.read_csv(f) for f in files))
+        all_data = gpd.GeoDataFrame(all_data, geometry=gpd.points_from_xy(all_data.trilong, all_data.trilat))
+        all_data.crs = 'epsg:4326'
+        all_data = all_data.to_crs('epsg:27700')
+        all_data.to_file(os.path.join(folder, 'collected_points.shp'), crs='epsg:27700')
+        # else:
+        #     all_data = gpd.read_file(collected_data)
+
 
         print('AP count is {}'.format(len(all_data)))
         print('Boundary is {} km^2'.format(round(boundary['geometry'].area.values[0] / 1e6, 2)))
