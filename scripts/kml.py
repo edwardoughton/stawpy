@@ -106,28 +106,35 @@ def aggregate(data):
 
 if __name__ == '__main__':
 
-    files = os.listdir(os.path.join(BASE_PATH, 'wigle', '2020_4_7'))
+    folders = [
+        # '2020_4_7',
+        '22_4_20',
+    ]
 
-    for filename in files:
+    for folder in folders:
 
-        print('Working on {}'.format(filename))
+        files = os.listdir(os.path.join(BASE_PATH, 'wigle', folder))
 
-        print('Loading .kml data')
-        path = os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename)
-        data = load_data(path)
+        for filename in files:
 
-        print('Aggregating data')
-        data = aggregate(data)
+            print('Working on {}'.format(filename))
 
-        print('Exporting as .csv')
-        filename = filename[:-4]
-        data.to_csv(os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename + '.csv'), index=False)
+            print('Loading .kml data')
+            path = os.path.join(BASE_PATH, 'wigle', folder, filename)
+            data = load_data(path)
 
-        print('Converting to geopandas geodataframe')
-        data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data.lon, data.lat))
-        path = os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename + '.shp')
+            print('Aggregating data')
+            data = aggregate(data)
 
-        print('Exporting as .shp')
-        data.to_file(path, crs='epsg:4326', index=False)
+            print('Exporting as .csv')
+            filename = filename[:-4]
+            data.to_csv(os.path.join(BASE_PATH, 'wigle', folder, filename + '.csv'), index=False)
 
-        print('Completed conversion to .kml')
+            print('Converting to geopandas geodataframe')
+            data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data.lon, data.lat))
+            path = os.path.join(BASE_PATH, 'wigle', folder, filename + '.shp')
+
+            print('Exporting as .shp')
+            data.to_file(path, crs='epsg:4326', index=False)
+
+            print('Completed conversion to .kml')
