@@ -14,15 +14,16 @@ import pandas as pd
 import geopandas as gpd
 import lxml
 from pykml import parser
-import glob
 import osmnx as ox
+from shapely.geometry import mapping, Polygon
+import numpy as np
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
 
 
-def subset_points(files, boundary):
+def subset_points(folder, files, boundary):
     """
 
     """
@@ -34,7 +35,7 @@ def subset_points(files, boundary):
             continue
 
         print('Loading {}'.format(filename))
-        path = os.path.join(BASE_PATH, 'wigle', '2020_4_7', filename)
+        path = os.path.join(folder, filename)
 
         data = load_data(path)
 
@@ -87,45 +88,284 @@ def load_data(path):
     return output
 
 
-def calculate_density(graph, all_data, delivery_point_density_km2):
+def grid_area(boundary):
     """
 
     """
-    output = []
+    xmin, ymin, xmax, ymax = boundary['geometry'].total_bounds
 
-    seen = set()
+    length = 50
+    wide = 50
 
-    for idx, poly in graph.iterrows():
+    cols = list(range(int(np.floor(xmin)), int(np.ceil(xmax)), wide))
+    rows = list(range(int(np.floor(ymin)), int(np.ceil(ymax)), length))
+    rows.reverse()
 
-        geom = poly['geometry'].buffer(10)
+    polygons = []
+    for x in cols:
+        for y in rows:
+            polygons.append(Polygon([(x, y), (x+wide, y), (x+wide, y-length), (x, y-length)]))
 
-        intersecting = all_data[all_data.intersects(geom)]
+    grid = gpd.GeoDataFrame({'geometry':polygons})
 
-        count = []
+    return grid
 
-        for idx, row in intersecting.iterrows():
 
-            row['coords'] = (row['trilong'], row['trilat'])
+def union_of_points(data):
+    """
 
-            if row['coords'] in seen:
-                continue
-            else:
-                count.append(row['coords'])
+    """
+    buffer = data.buffer(30)
+    union = buffer.unary_union
+    geom = mapping(union)
 
-            seen.add(row['coords'])
+    interim = []
 
-        geom = poly['geometry'].buffer(100)
-
-        output.append({
-            'count': len(count),
-            'area_km2': geom.area / 1e6,
-            'ap_density_km2': len(count) / (geom.area / 1e6),
-            'delivery_point_density_km2': delivery_point_density_km2 * (geom.area / 1e6),
+    if geom['type'] == 'MultiPolygon':
+        for idx, item in enumerate(geom['coordinates']):
+                interim.append({
+                    'geometry': {
+                        'type': 'Polygon',
+                        'coordinates': item,
+                    },
+                    'properties': {
+                    }
+                })
+    else:
+        interim.append({
+            'geometry': geom,
+            'properties': {
+            }
         })
 
-    output = pd.DataFrame(output)
+    union = gpd.GeoDataFrame.from_features(interim)
+
+    return union
+
+
+def create_general_buffer(collected_aps, aps_buffered, codepoint_polys):
+    """
+
+    """
+    f = lambda x:np.sum(collected_aps.intersects(x))
+    aps_buffered['waps_collected'] = aps_buffered['geometry'].apply(f)
+
+    aps_buffered['area_km2'] = aps_buffered['geometry'].area / 1e6
+
+    aps_buffered['waps_km2'] = (
+        aps_buffered['waps_collected'] / aps_buffered['area_km2'])
+
+    f = lambda x:np.sum(codepoint_polys.intersects(x))
+    aps_buffered['rmdps'] = aps_buffered['geometry'].apply(f)
+
+    aps_buffered['rmdps_km2'] = (
+        aps_buffered['rmdps'] / aps_buffered['area_km2'])
+
+    return aps_buffered
+
+
+def subset_codepoint(pcd_sector, boundary):
+    """
+
+    """
+    filename = '{}.shp'.format(pcd_sector[2])
+    path = os.path.join(BASE_PATH, 'codepoint', filename)
+    codepoint_polys = gpd.read_file(path, crs='epsg:27700')
+
+    filename = '{}_vstreet_lookup.txt'.format(pcd_sector[2])
+    path = os.path.join(BASE_PATH, 'codepoint', filename)
+    verticals = open(path, "r")
+
+    v_lookup = {}
+
+    for vertical in verticals:
+
+        pcd_id = vertical.split(',')[0]
+        pcd_id = pcd_id[1:8].replace('"', '')
+        vertical_id = vertical.split(',')[1]
+        vertical_id = vertical_id[1:9].replace('"', '')
+        v_lookup[vertical_id] = pcd_id
+
+    centroids = codepoint_polys.copy()
+    centroids['geometry'] = centroids['geometry'].representative_point()
+    centroids = centroids[centroids.intersects(boundary.unary_union)]
+
+    interim = []
+
+    for idx, poly in codepoint_polys.iterrows():
+
+        if poly['POSTCODE'] in centroids['POSTCODE'].unique():
+            if poly['POSTCODE'].startswith('V'): # and poly['POSTCODE'] in v_lookup.keys()
+                pcd = v_lookup[poly['POSTCODE']]
+                poly['POSTCODE'] = pcd
+
+            interim.append({
+                'type': 'Feature',
+                'geometry': mapping(poly['geometry'].representative_point()),
+                'properties': {
+                    'POSTCODE': poly['POSTCODE'],
+                }
+            })
+
+    #import codepoint delivery point data from csv and merge
+    filename = '{}.csv'.format(pcd_sector[2])
+    path = os.path.join(BASE_PATH, 'codepoint', filename)
+    codepoint_lut = pd.read_csv(path)
+    codepoint_lut = codepoint_lut.to_records().tolist()
+
+    output = []
+
+    for item in interim:
+        for lut_item in codepoint_lut:
+            # print(lut_item)
+            if item['properties']['POSTCODE'] == lut_item[1]:
+                output.append({
+                    'type': item['type'],
+                    'geometry': item['geometry'],
+                    'properties': {
+                        'POSTCODE': item['properties']['POSTCODE'],
+                        # 'po_box': lut_item[3],
+                        'total_rmdps': lut_item[4],
+                        # 'domestic': lut_item[6],
+                        # 'non_domestic': lut_item[7],
+                        # 'po_boxes': lut_item[8],
+                        # 'type': lut_item[19]
+                    }
+                })
+
+    output = gpd.GeoDataFrame.from_features(output)
 
     return output
+
+
+def intersect_grid_w_points(grid, all_data, codepoint_polys):
+    """
+
+    """
+    f = lambda x:np.sum(all_data.intersects(x))
+    grid['waps_collected'] = grid['geometry'].apply(f)
+
+    grid['area_km2'] = grid['geometry'].area / 1e6
+
+    grid['waps_km2'] = grid['waps_collected'] / grid['area_km2']
+
+
+    f = lambda x:np.sum(codepoint_polys.intersects(x))
+    grid['total_rmdps'] = grid['geometry'].apply(f)
+
+    grid['rmdps_km2'] = grid['total_rmdps'] / grid['area_km2']
+
+    return grid
+
+
+def intersect_buffer_w_polys(aps_buffered, codepoint_polys):
+    """
+
+    """
+
+    aps_buffered = gpd.overlay(
+        aps_buffered, codepoint_polys, how='intersection')
+
+    aps_buffered['area_km2'] = aps_buffered['geometry'].area / 1e6
+
+    aps_buffered['waps_km2'] = aps_buffered['waps_km2'] * aps_buffered['area_km2']
+
+    aps_buffered['rmdps_km2'] = aps_buffered['total_rmdps'] / aps_buffered['area_km2']
+
+    aps_buffered = aps_buffered[['geometry', 'POSTCODE', 'area_km2', 'waps_km2', 'total_rmdps', 'rmdps_km2']]
+
+    return aps_buffered
+
+
+def subset_buildings(pcd_sector, boundary):
+    """
+
+    """
+    filename = '{}.shp'.format(pcd_sector[1])
+    path = os.path.join(BASE_PATH, 'buildings', filename)
+    buildings = gpd.read_file(path, crs='epsg:27700')
+
+    buildings = buildings[buildings.intersects(boundary.unary_union)]
+
+    mask = buildings['geometry'].area > 10
+
+    buildings = buildings.loc[mask]
+
+    return buildings
+
+
+def estimate_building_ap_density(buildings, codepoint_polys):
+    """
+
+    """
+    buildings = gpd.overlay(buildings, codepoint_polys, how='intersection')
+    buildings['building_area_km2'] = buildings['geometry'].area / 1e6
+
+    all_postcodes = buildings['POSTCODE'].unique()
+
+    bulding_area_lut = []
+
+    for postcode in all_postcodes:
+
+        postcode_building_area_km2 = 0
+
+        for idx, building in buildings.iterrows():
+            if postcode == building['POSTCODE'] :
+                postcode_building_area_km2 += building['building_area_km2']
+
+        bulding_area_lut.append({
+            'POSTCODE': postcode,
+            'postcode_building_area_km2': postcode_building_area_km2,
+        })
+
+    output = []
+
+    for idx, building in buildings.iterrows():
+        for item in bulding_area_lut:
+            if building['POSTCODE'] == item['POSTCODE']:
+
+                rmdps = (building['building_area_km2'] /
+                    item['postcode_building_area_km2']) * building['total_rmdps']
+
+                output.append({
+                    'type': 'Feature',
+                    'geometry': building['geometry'],
+                    'properties': {
+                        # 'fid': building['fid'],
+                        # 'POSTCODE': building['POSTCODE'],
+                        # 'building_area_m': building['building_area_m'],
+                        # 'postcode_building_area_m': item['postcode_building_area_m'],
+                        # 'total_delivery_points': building['total'],
+                        'rmdps': rmdps,
+                        # 'waps'
+                        # 'rmdps_km2': ap_estimate / (building['building_area_km2']),
+                    }
+                })
+
+    output = gpd.GeoDataFrame.from_features(output)
+
+    return output
+
+
+def intersect_buffer_w_buildings(aps_buffered, buildings):
+    """
+
+    """
+    aps_buffered = gpd.overlay(
+        aps_buffered, buildings, how='intersection')
+
+    return aps_buffered
+
+
+def aggregate(intersected_buildings):
+    """
+
+    """
+    df = intersected_buildings[['POSTCODE', 'rmdps']]
+
+    df = df.groupby(['POSTCODE'], as_index=True).sum()
+
+    return df
 
 
 def plot_results(data, pcd_sector):
@@ -137,32 +377,23 @@ def plot_results(data, pcd_sector):
 
     data = data.loc[data['ap_density_km2'] > 0]
 
-    plot = sns.scatterplot(x="delivery_point_density_km2", y="ap_density_km2", data=data)
+    title = 'Collected Versus Predicted WiFi APs: {}'.format(pcd_sector[3])
 
+    plot = sns.regplot(x="waps_km2", y="rmdps_km2", data=data).set_title(title)
+
+    plt.xlabel('Density of Collected WiFi APs (km^2)')
+    plt.ylabel('Density of Postal Delivery Points (km^2)')
     fig = plot.get_figure()
-    fig.savefig(os.path.join(results, pcd_sector, "plot.png"))
-
+    fig.savefig(os.path.join(results, pcd_sector[0], "plot.png"))
+    plt.clf()
 
 if __name__ == '__main__':
 
     pcd_sectors = [
-        'EC1M3',
-        'EC1N2',
-        'EC1N6',
-        'EC1N7',
-        'EC1N8',
-        'EC1R5',
-        'EC4A1',
-        'EC4A2',
-        'EC4A3',
-        'EC4Y0',
-        'EC4Y1',
-        'EC4Y7',
-        'EC4Y8',
-        'EC4Y9',
-        'N1C4',
-        'NW15',
-        # 'N78'
+        # ('N78', 'london', 'n', 'N78 - Urban'),
+        ('W1G6', 'london', 'w', 'W1G6 - Dense Urban'),
+        ('W1H2', 'london', 'w', 'W1H2 - Dense Urban'),
+        ('CB41', 'cambridge', 'cb', 'CB41 - Suburban'),
     ]
 
     results = os.path.join(BASE_PATH, '..', 'results')
@@ -174,48 +405,58 @@ if __name__ == '__main__':
     pcd_sector_shapes.crs = 'epsg:27700'
     pcd_sector_shapes = pcd_sector_shapes.to_crs('epsg:27700')
 
-    # files = os.listdir(os.path.join(BASE_PATH, 'wigle', '2020_4_7'))
+    folder_kml = os.path.join(BASE_PATH, 'wigle', 'all_kml_data')
+    files = os.listdir(folder_kml)
 
     for pcd_sector in pcd_sectors:
 
         print('Getting data')
-        folder = os.path.join(BASE_PATH, '..', 'results', str(pcd_sector))
+        folder = os.path.join(BASE_PATH, '..', 'results', str(pcd_sector[0]))
         if not os.path.exists(folder):
             os.makedirs(folder)
 
         print('Getting boundary')
-        boundary = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'] == pcd_sector]
-        boundary.to_file(os.path.join(folder, 'boundary.shp'), crs='epsg:27700')
+        path = os.path.join(folder, 'boundary.shp')
+        if not os.path.exists(path):
+            boundary = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'] == pcd_sector[0]]
+            boundary.to_file(path, crs='epsg:27700')
+        else:
+            boundary = gpd.read_file(path, crs='epsg:27700')
 
-        # # collected_data = os.path.join(folder, 'collected_points.shp')
-        # # if not os.path.exists(collected_data):
-        # #     all_data = subset_points(files, boundary)
-        # # else:
-        # #     all_data = gpd.read_file(collected_data)
+        print('Create grid')
+        path = os.path.join(folder, 'grid.shp')
+        if not os.path.exists(path):
+            grid = grid_area(boundary)
+            grid.to_file(path, crs='epsg:27700')
+        else:
+            grid = gpd.read_file(path, crs='epsg:27700')
 
-        # collected_data = os.path.join(folder, 'collected_points.shp')
-        # if not os.path.exists(collected_data):
-        path = os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector, 'data_547486008')
-        all_files = os.listdir(os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector))
-        files = []
-        for file_name in all_files:
-            files.append(
-                os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', pcd_sector, file_name)
-            )
-        all_data = pd.concat((pd.read_csv(f) for f in files))
-        all_data = gpd.GeoDataFrame(all_data, geometry=gpd.points_from_xy(all_data.trilong, all_data.trilat))
-        all_data.crs = 'epsg:4326'
-        all_data = all_data.to_crs('epsg:27700')
-        all_data.to_file(os.path.join(folder, 'collected_points.shp'), crs='epsg:27700')
-        # else:
-        #     all_data = gpd.read_file(collected_data)
+        print('Processing collected points')
+        collected_data = os.path.join(folder, 'collected_points.shp')
+        if not os.path.exists(collected_data):
+            all_data = subset_points(folder_kml, files, boundary)
+        else:
+            all_data = gpd.read_file(collected_data, crs='epsg:27700')
 
+        print('Subsetting codepoint')
+        path = os.path.join(folder, 'codepoint_polys.shp')
+        if not os.path.exists(path):
+            codepoint_polys = subset_codepoint(pcd_sector, boundary)
+            codepoint_polys.to_file(path, crs='epsg:27700')
+        else:
+            codepoint_polys = gpd.read_file(path, crs='epsg:27700')
 
-        print('AP count is {}'.format(len(all_data)))
-        print('Boundary is {} km^2'.format(round(boundary['geometry'].area.values[0] / 1e6, 2)))
-        print('AP density is {} km^2'.format(round(len(all_data) / (boundary['geometry'].area.values[0] / 1e6), 2)))
-        print('Total Royal Mail delivery points {}'.format(5121))
-        delivery_point_density_km2 = (5121 / (boundary['geometry'].area.values[0] / 1e6))
+        print('Intersecting grid with points')
+        path = os.path.join(folder, 'grid_with_points.csv')
+        if not os.path.exists(path):
+            postcode_aps = intersect_grid_w_points(grid, all_data, codepoint_polys)
+            postcode_aps.to_file( os.path.join(folder, 'postcode_aps.shp'), crs='epsg:27700')
+            postcode_aps.to_csv(os.path.join(folder, 'postcode_aps.csv'), index=False)
+        else:
+            postcode_aps = pd.read_csv(path)
+
+        print('Plot results')
+        plot_results(postcode_aps, pcd_sector)
 
         print('Getting bounding box')
         bbox = boundary
@@ -249,21 +490,12 @@ if __name__ == '__main__':
         filename = 'road_network.shp'
         graph.to_file(os.path.join(folder, filename), crs='epsg:27700')
 
-        print('Getting AP density')
-        density_results = calculate_density(graph, all_data, delivery_point_density_km2)
-
-        print('Plot results')
-        plot_results(density_results, pcd_sector)
-
-        print('Writing AP density results')
-        filename = 'density_results.csv'
-        density_results.to_csv(os.path.join(folder, filename), index=False)
-
-        print('Writing road network')
-        filename = 'buffered_road_network.shp'
-        graph['geometry'] = graph['geometry'].buffer(10)
-        graph.to_file(os.path.join(folder, filename), crs='epsg:27700')
-
-        print('Completed {}'.format(pcd_sector))
+        print('Subsetting buildings')
+        path = os.path.join(folder, 'buildings.shp')
+        if os.path.exists(path):
+            buildings = gpd.read_file(path, crs='epsg:27700')
+        else:
+            buildings = subset_buildings(pcd_sector, boundary)
+            buildings.to_file(path, crs='epsg:27700')
 
     print('Completed script')
