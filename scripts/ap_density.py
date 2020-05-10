@@ -9,12 +9,9 @@ April 2020
 import os
 import csv
 import configparser
-import time
 import pandas as pd
 import geopandas as gpd
-import lxml
 from pykml import parser
-import osmnx as ox
 from shapely.geometry import mapping, Polygon
 import numpy as np
 import seaborn as sns; sns.set()
