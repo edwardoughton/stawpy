@@ -13,13 +13,14 @@ import pandas as pd
 import geopandas as gpd
 import math
 import numpy as np
-from shapely.geometry import Point, mapping
+from shapely.geometry import Point, mapping, Polygon
 from datetime import datetime
 import random
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
+RESULTS = os.path.join(BASE_PATH, '..', 'results')
 
 if __name__ == '__main__':
 
@@ -29,102 +30,86 @@ if __name__ == '__main__':
     ]
 
     pcd_sectors = [
-        'N1C4', #King's Cross Station
-        'NW12', #Euston Station
-        'SE18', #Waterloo Station
-        'W1C1', #Oxford Street
-        'W1C2', #Oxford Street
-        'W1K5', #Bond Street
-        'E144', #Canary Wharf
-        'E145', #Canary Wharf
+        # 'W1G6',
+        'W1H2',
+        # 'N1C4', #King's Cross Station
+        # 'NW12', #Euston Station
+        # 'SE18', #Waterloo Station
+        # 'W1C1', #Oxford Street
+        # 'W1C2', #Oxford Street
+        # 'W1K5', #Bond Street
+        # 'E144', #Canary Wharf
+        # 'E145', #Canary Wharf
     ]
 
-    results = os.path.join(BASE_PATH, '..', 'results')
-    if not os.path.exists(results):
-        os.makedirs(results)
-
-    path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
-    pcd_sector_shapes = gpd.read_file(path)
-
+    # results = os.path.join(BASE_PATH, '..', 'results')
+    # if not os.path.exists(results):
+    #     os.makedirs(results)
 
     for pcd_sector in pcd_sectors:
 
-        # print('Working on {}'.format(locale))
+        print('Working on {}'.format(pcd_sector))
 
-        # boundaries = pcd_sector_shapes.loc[pcd_sector_shapes['Locale'] == locale]
+        path = os.path.join(RESULTS, pcd_sector, 'postcode_aps.shp')
 
-        for idx, boundary in pcd_sector_shapes.iterrows():
+        if not os.path.exists(path):
+            continue
 
-            pcd_sector_shape_id = boundary['StrSect']
+        grid_squares = gpd.read_file(path)
 
-            if not pcd_sector == pcd_sector_shape_id:
-                continue
+        grid_squares = grid_squares.loc[
+            grid_squares['waps_km2'] > 0]#[:1]
 
-            print('Working on {}'.format(pcd_sector))
+        if not len(grid_squares) > 0:
+            continue
 
-            print('Getting data')
+        for idx, grid_square in grid_squares.iterrows():
+
+            print('Working on grid square {}'.format(grid_square['geometry'].bounds))
+
             folder = os.path.join(BASE_PATH, 'wigle', 'postcode_sectors', str(pcd_sector))
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
             #minx, miny, maxx, maxy
-            geom = boundary['geometry']
-            minx, miny, maxx, maxy = geom.bounds
+            xmin, ymin, xmax, ymax = grid_square['geometry'].bounds
 
-            sample_points = []
+            length = 25
+            wide = 25
 
-            print('Generating sample points')
-            for i in range(1, int(geom.area/1000) + 1):
+            cols = list(range(int(np.floor(xmin)), int(np.ceil(xmax)), wide))
+            rows = list(range(int(np.floor(ymin - length)), int(np.ceil(ymax - length)), length))
 
-                x = random.uniform(minx, maxx)
-                y = random.uniform(miny, maxy)
+            rows.reverse()
 
-                sample_points.append({
-                    'type': "Feature",
-                    'geometry': {
-                        "type": "Point",
-                        "coordinates": (x, y),
-                    },
-                    'properties': {
-                        'id': i,
-                    }
-                })
+            polygons = []
+            for x in cols:
+                for y in rows:
+                    polygons.append(Polygon([(x, y), (x+wide, y), (x+wide, y-length), (x, y-length)]))
 
-            print('Number of sample points is {}'.format(len(sample_points)))
-            print('Generating results')
+            grid = gpd.GeoDataFrame({'geometry': polygons})
+            grid.crs = 'epsg:27700'
+            grid = grid.to_crs('epsg:4326')
+            path = os.path.join(folder, '{}_{}_{}_{}.shp'.format(xmin, ymin, xmax, ymax))
+            grid.to_file(path, crs='epsg:4326')
 
-            results = []
+            for idx, geom in grid.iterrows():
 
-            for idx, point in enumerate(sample_points):
+                results = []
 
-                # if idx > 1:
-                #     continue
-
-                geom = Point(point['geometry']['coordinates'])
-
-                df = pd.DataFrame({'point': [idx]})
-                gdf = gpd.GeoDataFrame(df, geometry = [geom])
-
-                gdf['geometry'] = gdf['geometry'].buffer(50)
-                gdf['geometry'] = gdf['geometry'].envelope
-
-                area_m = gdf['geometry'].area.values[0]
-
-                gdf.crs = 'epsg:27700'
-                gdf = gdf.to_crs('epsg:4326')
-
-                bbox = gdf['geometry'].bounds
-
+                bbox = geom['geometry'].bounds
+                xmin, ymin, xmax, ymax = geom['geometry'].bounds
+                # print(xmin, ymin, xmax, ymax)
                 response = requests.get('https://api.wigle.net//api//v2//network//search',
                     auth=('AIDf99511eff6a2976fbba7e482e9e8a193', '6f6c2f043c6c350117f12cbf79c71c54'),
 
                     params={
                         # "region":"England",
                         # 'country': 'GB',
-                        'latrange1': bbox['miny'].values[0],
-                        'latrange2': bbox['maxy'].values[0],
-                        'longrange1': bbox['minx'].values[0],
-                        'longrange2': bbox['maxx'].values[0],
+                        'latrange1': ymin, #bbox['miny'].values[0],
+                        'latrange2': ymax, #bbox['maxy'].values[0],
+                        'longrange1': xmin, #bbox['minx'].values[0],
+                        'longrange2': xmax, #bbox['maxx'].values[0],
                         'startTransID': '20170000-00000',
                         'resultsPerPage': 1000,
                     }
@@ -140,17 +125,14 @@ if __name__ == '__main__':
                 # # 'road': 'Oxford Street', 'postalcode': 'W1H 7AL'}
 
                 for item in response.json()['results']:
-                    item['coordinates'] = point['geometry']['coordinates']
-                    item['area_m'] = area_m
+                    # item['coordinates'] = geom['geometry']['coordinates']
+                    # item['area_m'] = geom['geometry'].area
                     results.append(item)
 
                 print('Number of results is {}'.format(len(results)))
 
-            output = pd.DataFrame(results)
-            output = output.drop_duplicates(subset=['netid'])
+                output = pd.DataFrame(results)
+                filename = '{}_{}_{}_{}.csv'.format(xmin, ymin, xmax, ymax)
 
-            random_number = round(random.uniform(0,1e9))
-            filename = str('data_{}.csv'.format(random_number))
-
-            print('Writing {}'.format(pcd_sector))
-            output.to_csv(str(os.path.join(folder, filename + '.csv')), index=False)
+                print('Writing {}'.format(pcd_sector))
+                output.to_csv(os.path.join(folder, filename), index=False)
