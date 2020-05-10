@@ -135,6 +135,7 @@ dmypy.json
 /data/daytime_employment/*
 /data/wigle/*
 /data/buildings/*
+/data/prems_by_lad/*
 /data/codepoint/*
 /data/intermediate/*
 /results/*
