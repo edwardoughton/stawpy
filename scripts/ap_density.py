@@ -22,8 +22,9 @@ CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
 
 
-def subset_points(folder, files):
+def load_collected_ap_data(folder, files):
     """
+    Load existing AP data collected.
 
     """
     all_data = []
@@ -49,6 +50,7 @@ def subset_points(folder, files):
 
 def load_data(path):
     """
+    Load existing AP data collected from Wigle to geojson.
 
     """
     with open(path) as f:
@@ -85,6 +87,7 @@ def load_data(path):
 
 def grid_area(boundary, side_length):
     """
+    Create grid area with specfic user-defined tile widths.
 
     """
     xmin, ymin, xmax, ymax = boundary['geometry'].total_bounds
@@ -114,137 +117,9 @@ def grid_area(boundary, side_length):
     return grid
 
 
-def union_of_points(data):
-    """
-
-    """
-    buffer = data.buffer(30)
-    union = buffer.unary_union
-    geom = mapping(union)
-
-    interim = []
-
-    if geom['type'] == 'MultiPolygon':
-        for idx, item in enumerate(geom['coordinates']):
-                interim.append({
-                    'geometry': {
-                        'type': 'Polygon',
-                        'coordinates': item,
-                    },
-                    'properties': {
-                    }
-                })
-    else:
-        interim.append({
-            'geometry': geom,
-            'properties': {
-            }
-        })
-
-    union = gpd.GeoDataFrame.from_features(interim)
-
-    return union
-
-
-def create_general_buffer(collected_aps, aps_buffered, codepoint_polys):
-    """
-
-    """
-    f = lambda x:np.sum(collected_aps.intersects(x))
-    aps_buffered['waps_collected'] = aps_buffered['geometry'].apply(f)
-
-    aps_buffered['area_km2'] = aps_buffered['geometry'].area / 1e6
-
-    aps_buffered['waps_km2'] = (
-        aps_buffered['waps_collected'] / aps_buffered['area_km2'])
-
-    f = lambda x:np.sum(codepoint_polys.intersects(x))
-    aps_buffered['rmdps'] = aps_buffered['geometry'].apply(f)
-
-    aps_buffered['rmdps_km2'] = (
-        aps_buffered['rmdps'] / aps_buffered['area_km2'])
-
-    return aps_buffered
-
-
-def subset_codepoint(pcd_sector, boundary):
-    """
-
-    """
-    pcd_area = pcd_sector[:2]
-    pcd_area = ''.join([i for i in pcd_area if not i.isdigit()])
-
-    filename = '{}.shp'.format(pcd_area)
-    path = os.path.join(BASE_PATH, 'codepoint', 'shapes', filename)
-    codepoint_polys = gpd.read_file(path, crs='epsg:27700')
-
-    filename = '{}_vstreet_lookup.txt'.format(pcd_area)
-    path = os.path.join(BASE_PATH, 'codepoint', 'shapes',filename)
-    verticals = open(path, "r")
-
-    v_lookup = {}
-
-    for vertical in verticals:
-
-        pcd_id = vertical.split(',')[0]
-        pcd_id = pcd_id[1:8].replace('"', '')
-        vertical_id = vertical.split(',')[1]
-        vertical_id = vertical_id[1:9].replace('"', '')
-        v_lookup[vertical_id] = pcd_id
-
-    centroids = codepoint_polys.copy()
-    centroids['geometry'] = centroids['geometry'].representative_point()
-    centroids = centroids[centroids.intersects(boundary.unary_union)]
-
-    interim = []
-
-    for idx, poly in codepoint_polys.iterrows():
-
-        if poly['POSTCODE'] in centroids['POSTCODE'].unique():
-            if poly['POSTCODE'].startswith('V'): # and poly['POSTCODE'] in v_lookup.keys()
-                pcd = v_lookup[poly['POSTCODE']]
-                poly['POSTCODE'] = pcd
-
-            interim.append({
-                'type': 'Feature',
-                'geometry': mapping(poly['geometry'].representative_point()),
-                'properties': {
-                    'POSTCODE': poly['POSTCODE'],
-                }
-            })
-
-    #import codepoint delivery point data from csv and merge
-    filename = '{}.csv'.format(pcd_area)
-    path = os.path.join(BASE_PATH, 'codepoint', 'csvs', filename)
-    codepoint_lut = pd.read_csv(path)
-    codepoint_lut = codepoint_lut.to_records().tolist()
-
-    output = []
-
-    for item in interim:
-        for lut_item in codepoint_lut:
-            if item['properties']['POSTCODE'] == lut_item[1]:
-                output.append({
-                    'type': item['type'],
-                    'geometry': item['geometry'],
-                    'properties': {
-                        'POSTCODE': item['properties']['POSTCODE'],
-                        # 'po_box': lut_item[3],
-                        'total_rmdps': lut_item[4],
-                        # 'domestic': lut_item[6],
-                        # 'non_domestic': lut_item[7],
-                        # 'po_boxes': lut_item[8],
-                        # 'type': lut_item[19]
-                    }
-                })
-
-    output = gpd.GeoDataFrame.from_features(output)
-
-    return output
-
-
 def intersect_grid_w_points(grid, all_data, buildings):
     """
+    Convert point data to grid squares by intersecting.
 
     """
     print('Intersecting grid with collected waps data')
@@ -304,25 +179,19 @@ def intersect_grid_w_points(grid, all_data, buildings):
     print('Total grid squares {}'.format(len(grid_aggregated)))
     grid_aggregated = grid_aggregated.loc[grid_aggregated['floor_area_km2'] > 0]
     print('Subset of grid squares without rmdps data {}'.format(len(grid_aggregated)))
+
     return grid_aggregated
 
 
 def plot_results(data, pcd_sector, x_axis, y_axis, plotname, x_label, y_label):
     """
+    General plotting function.
 
     """
     data = data.loc[data[y_axis] > 0]
-
-    # title = plotname + ': {}'.format(pcd_sector)
-
-    plot = sns.jointplot(x=x_axis, y=y_axis, data=data, kind='hex')#.set_title(title)
-    # plot = sns.regplot(x=x_axis, y=y_axis, data=data).set_title(title)
-
+    plot = sns.jointplot(x=x_axis, y=y_axis, data=data, kind='hex')
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    # plt.xlabel('Density of Collected WiFi APs (km^2)')
-    # plt.ylabel('Density of Postal Delivery Points (km^2)')
-    # fig = plot.get_figure()
     plot.savefig(os.path.join(results, pcd_sector, "{}.png".format(plotname)))
     plt.clf()
 
@@ -351,7 +220,7 @@ if __name__ == '__main__':
 
     path = os.path.join(BASE_PATH, 'intermediate', 'all_collected_points.shp')
     if not os.path.exists(path):
-        all_data = subset_points(folder_kml, files)
+        all_data = load_collected_ap_data(folder_kml, files)
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
@@ -430,20 +299,7 @@ if __name__ == '__main__':
             else:
                 buildings = gpd.read_file(path, crs='epsg:27700')
 
-
-        #     # pcd_sector = 'CB41'
-        #     # side_length = 100
-        #     # folder = os.path.join(BASE_PATH, '..', 'results', 'CB41')
-        #     # grid = gpd.read_file(os.path.join(folder, 'grid_100.shp'), crs='epsg:27700')
-        #     # collected_data = os.path.join(folder, 'collected_points.shp')
-        #     # points_subset = gpd.read_file(collected_data, crs='epsg:27700')
-        #     # points_subset = points_subset[:200]
-        #     # path = os.path.join(folder, 'buildings.shp')
-        #     # buildings = gpd.read_file(path, crs='epsg:27700')
-
             print('Intersecting grid with collected and building points layers')
-            # path = os.path.join(folder, 'grid_{}_with_points.csv'.format(side_length))
-            # if not os.path.exists(path):
             if len(buildings) > 0:
                 postcode_aps = intersect_grid_w_points(grid, points_subset, buildings)
                 if len(postcode_aps) > 0:
@@ -451,8 +307,6 @@ if __name__ == '__main__':
                     postcode_aps.to_csv(os.path.join(folder, 'postcode_aps_{}.csv'.format(side_length)), index=False)
             else:
                 pass
-            # else:
-            #     postcode_aps = pd.read_csv(path)
 
             print('Plot results')
             try:
@@ -460,26 +314,15 @@ if __name__ == '__main__':
                     'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2', 'Building count')
                 plot_results(postcode_aps, pcd_sector, "waps_km2", "res_count",
                     'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
-                # plot_results(postcode_aps, pcd_sector, "waps_km2", "nonres_count",
-                #     'aps_vs_nonres_count', 'Wigle APs per km^2', 'Non residential count')
                 plot_results(postcode_aps, pcd_sector, "waps_km2", "floor_area",
                     'aps_km2_vs_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
-                # plot_results(postcode_aps, pcd_sector, "waps_km2", "area_km2",
-                #     'aps_vs_area', 'Wigle APs per km^2', 'Area (km^2)')
-
                 plot_results(postcode_aps, pcd_sector, "waps_km2", "building_count_km2",
                     'aps_vs_building_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Building count (km^2)')
                 plot_results(postcode_aps, pcd_sector, "waps_km2", "res_count_km2",
                     'aps_km2_vs_res_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count (km^2)')
-                # plot_results(postcode_aps, pcd_sector, "waps_km2", "nonres_count_km2",
-                #     'aps_vs_nonres_count_km2', 'Wigle APs per km^2', 'Non residential count (km^2)')
                 plot_results(postcode_aps, pcd_sector, "waps_km2", "floor_area_km2",
                     'aps_km2_vs_floor_area_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
             except:
                 pass
-
-
-
-
 
         print('Completed script')
