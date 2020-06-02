@@ -30,8 +30,8 @@ if __name__ == '__main__':
     ]
 
     pcd_sectors = [
-        # 'W1G6',
-        'W1H2',
+        'W1G6',
+        # 'W1H2',
         # 'N1C4', #King's Cross Station
         # 'NW12', #Euston Station
         # 'SE18', #Waterloo Station
@@ -92,6 +92,8 @@ if __name__ == '__main__':
             grid = grid.to_crs('epsg:4326')
             path = os.path.join(folder, '{}_{}_{}_{}.shp'.format(xmin, ymin, xmax, ymax))
             grid.to_file(path, crs='epsg:4326')
+
+            grid = grid.loc[data['waps_km2'] > 0]
 
             for idx, geom in grid.iterrows():
 

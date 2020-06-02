@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     print('Getting postcode list')
     #subset just cambridge postcodes for speed up
-    pcd_sector_shapes = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'].str.startswith('CB')]
+    #pcd_sector_shapes = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'].str.startswith('CB')]
     pcd_list = get_pcd_list(collected_data, pcd_sector_shapes)
 
     print('Writing list')
