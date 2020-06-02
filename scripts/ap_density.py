@@ -332,13 +332,6 @@ if __name__ == '__main__':
     path = os.path.join(BASE_PATH, 'intermediate', 'pcd_list.csv')
     pcd_sectors = pd.read_csv(path)
 
-    # pcd_sectors = [
-    #     # ('N78', 'london', 'n', 'N78 - Urban'),
-    #     ('W1G6', 'london', 'w', 'W1G6 - Dense Urban'),
-    #     ('W1H2', 'london', 'w', 'W1H2 - Dense Urban'),
-    #     ('CB41', 'cambridge', 'cb', 'CB41 - Suburban'),
-    # ]
-
     path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
     pcd_sector_shapes = gpd.read_file(path)
     pcd_sector_shapes.crs = 'epsg:27700'
