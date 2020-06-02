@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
             prems_within_pcd = gpd.overlay(prems_by_lad, curent_pcd_sector, how='intersection')
 
-            path = os.path.join(BASE_PATH, 'intermediate', 'prems', 'E07000008', pcd_shape_id + '.shp')
+            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.shp')
             prems_within_pcd.to_file(path, crs='epsg:27700')
-            path = os.path.join(BASE_PATH, 'intermediate', 'prems', 'E07000008', pcd_shape_id + '.csv')
+            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.csv')
             prems_within_pcd.to_csv(path, index=False)
