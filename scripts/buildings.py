@@ -104,6 +104,7 @@ if __name__ == '__main__':
     path = os.path.join(BASE_PATH, 'shapes', 'lad_uk_2016-12.shp')
     lads = gpd.read_file(path, crs='epsg:27700')
     pcd_points.crs = 'epsg:27700'
+
     pcd_points, lad_list = get_lad_list(lads, pcd_points)
 
     for lad_id in lad_list:
@@ -111,6 +112,8 @@ if __name__ == '__main__':
         print('Loading data for {}'.format(lad_id))
 
         path = os.path.join(BASE_PATH, 'prems_by_lad', lad_id)
+
+        # if not os.path.exists(path):
 
         prems_by_lad = []
 
@@ -150,13 +153,17 @@ if __name__ == '__main__':
             # if not pcd_shape_id == 'CB41':
             #     continue
 
-            print('Working on {}'.format(pcd_shape_id))
-
-            curent_pcd_sector = pcd_shapes_subset.loc[pcd_shapes_subset['StrSect'] == pcd_shape_id]
-
-            prems_within_pcd = gpd.overlay(prems_by_lad, curent_pcd_sector, how='intersection')
-
-            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.shp')
-            prems_within_pcd.to_file(path, crs='epsg:27700')
             path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.csv')
-            prems_within_pcd.to_csv(path, index=False)
+
+            if not os.path.exists(path):
+
+                print('Working on {}'.format(pcd_shape_id))
+
+                curent_pcd_sector = pcd_shapes_subset.loc[pcd_shapes_subset['StrSect'] == pcd_shape_id]
+
+                prems_within_pcd = gpd.overlay(prems_by_lad, curent_pcd_sector, how='intersection')
+
+                prems_within_pcd.to_csv(path, index=False)
+
+                path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.shp')
+                prems_within_pcd.to_file(path, crs='epsg:27700')

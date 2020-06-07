@@ -1,5 +1,5 @@
 """
-Calculate AP density.
+Calculate AP density using grid squares.
 
 Written by Ed Oughton.
 
@@ -20,6 +20,42 @@ import matplotlib.pyplot as plt
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
+
+
+def define_geotypes(pcd_sector_geotypes):
+    """
+
+    """
+    output = {}
+
+    for idx, row in pcd_sector_geotypes.iterrows():
+
+        if row['pop_density_km2'] > 7959:
+            row['geotype'] = 'urban'
+        # elif row['pop_density_km2'] > 3119:
+        #     row['geotype'] = 'suburban 1'
+        elif row['pop_density_km2'] > 782:
+            row['geotype'] = 'suburban' #'suburban 2'
+        # elif row['pop_density_km2'] > 112:
+        #     row['geotype'] = 'rural 1'
+        # elif row['pop_density_km2'] > 47:
+        #     row['geotype'] = 'rural 2'
+        # elif row['pop_density_km2'] > 25:
+        #     row['geotype'] = 'rural 3'
+        # elif row['pop_density_km2'] > 0:
+        #     row['geotype'] = 'rural 4'
+        else:
+            row['geotype'] = 'rural' #'rural 5'
+
+        output[row['id']] = {
+            'lad': row['lad'],
+            'population': row['population'],
+            'area_km2': row['area_km2'],
+            'pop_density_km2': row['pop_density_km2'],
+            'geotype': row['geotype'],
+        }
+
+    return output
 
 
 def load_collected_ap_data(folder, files):
@@ -117,7 +153,7 @@ def grid_area(boundary, side_length):
     return grid
 
 
-def intersect_grid_w_points(grid, all_data, buildings):
+def intersect_grid_w_points(grid, all_data, buildings, pcd_sector_data):
     """
     Convert point data to grid squares by intersecting.
 
@@ -135,41 +171,60 @@ def intersect_grid_w_points(grid, all_data, buildings):
     print('Subset of grid squares without waps data {}'.format(len(grid)))
 
     print('Add grid ids to building layer')
-    merged = gpd.overlay(buildings, grid, how='intersection')
-    merged = merged[['geometry', 'res_count', 'nonres_cou', 'floor_area', 'FID']]
+    try:
+        merged = gpd.overlay(buildings, grid, how='intersection')
+    except:
+        return 'Unable to complete intersection'
+
+    merged = merged[['mistral_fu', 'mistral_bu', 'res_count', 'floor_area',
+        'height_tor', 'height_t_1', 'nonres_cou', 'number_of_', 'footprint_',
+        'StrSect', 'FID', 'waps_collected', 'area_km2', 'waps_km2',]]
     merged = merged[merged["floor_area"] > 100]
     merged = merged.to_dict('records')
 
     grid_aggregated = []
 
     for idx, grid_tile in grid.iterrows():
-        building_count = 0
         res_count = 0
-        nonres_count = 0
         floor_area = 0
+        adjusted_floor_area = 0
+        building_count = 0
+        nonres_count = 0
+
         for merged_points in merged:
             if grid_tile['FID'] == merged_points['FID']:
-                building_count += 1
                 res_count += merged_points['res_count']
+                if merged_points['number_of_'] <= 2: #if number of floors < 2
+                    floor_area += merged_points['floor_area']
+                    adjusted_floor_area += merged_points['floor_area']
+                else:
+                    floor_area += merged_points['floor_area']
+                    #assume APs at or above 3 floors can't be accessed
+                    adjusted_floor_area += (merged_points['footprint_'] * 2)
+
+                building_count += 1
                 nonres_count += merged_points['nonres_cou']
-                floor_area += merged_points['floor_area']
 
         area_km2 = grid_tile['geometry'].area / 1e6
 
         grid_aggregated.append({
             'geometry': grid_tile['geometry'],
             'properties': {
-                'FID': grid_tile['FID'],
-                'waps_km2': grid_tile['waps_km2'],
-                'building_count': building_count,
-                'building_count_km2': building_count / area_km2,
                 'res_count': res_count,
-                'res_count_km2': res_count / area_km2,
-                'nonres_count': nonres_count,
-                'nonres_count_km2': nonres_count / area_km2,
                 'floor_area': floor_area,
-                'floor_area_km2': floor_area / area_km2,
+                'adjusted_floor_area': adjusted_floor_area,
+                'building_count': building_count,
+                'nonres_count': nonres_count,
+                'waps_collected': grid_tile['waps_km2'] * area_km2,
+                'waps_km2': grid_tile['waps_km2'],
                 'area_km2': area_km2,
+                'FID': grid_tile['FID'],
+                'geotype': pcd_sector_data['geotype'],
+                'lad': pcd_sector_data['lad'],
+                'population': pcd_sector_data['population'],
+                'area_km2': pcd_sector_data['area_km2'],
+                'pop_density_km2': pcd_sector_data['pop_density_km2'],
+                'geotype': pcd_sector_data['geotype'],
             }
         })
 
@@ -177,7 +232,7 @@ def intersect_grid_w_points(grid, all_data, buildings):
     grid_aggregated.to_file(os.path.join(folder, 'merged.shp'), crs='epsg:27700')
 
     print('Total grid squares {}'.format(len(grid_aggregated)))
-    grid_aggregated = grid_aggregated.loc[grid_aggregated['floor_area_km2'] > 0]
+    grid_aggregated = grid_aggregated.loc[grid_aggregated['floor_area'] > 0]
     print('Subset of grid squares without rmdps data {}'.format(len(grid_aggregated)))
 
     return grid_aggregated
@@ -200,6 +255,7 @@ if __name__ == '__main__':
 
     path = os.path.join(BASE_PATH, 'intermediate', 'pcd_list.csv')
     pcd_sectors = pd.read_csv(path)
+    pcd_sectors = pcd_sectors.iloc[::-1]
 
     path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
     pcd_sector_shapes = gpd.read_file(path)
@@ -210,6 +266,11 @@ if __name__ == '__main__':
     lad_shapes = gpd.read_file(path)
     lad_shapes.crs = 'epsg:27700'
     lad_shapes = lad_shapes.to_crs('epsg:27700')
+
+    filename = 'pcd_sector_geotypes.csv'
+    path = os.path.join(BASE_PATH, 'pcd_sector_geotypes', filename)
+    pcd_sector_geotypes = pd.read_csv(path)
+    pcd_sector_geotypes = define_geotypes(pcd_sector_geotypes)
 
     folder_kml = os.path.join(BASE_PATH, 'wigle', 'all_kml_data')
     files = os.listdir(folder_kml)
@@ -224,7 +285,12 @@ if __name__ == '__main__':
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
-    side_lengths = [50, 100, 200, 300]
+    side_lengths = [100, 300]
+    problem_pcd_sectors = []
+
+    #W1H 2
+    #W1G 6
+    #W1G 8
 
     for side_length in side_lengths:
 
@@ -232,10 +298,15 @@ if __name__ == '__main__':
 
             pcd_sector = row['StrSect']
 
-            # if not pcd_sector == 'CB41':
+            # if not pcd_sector == 'NW16':
             #     continue
 
             print('-- Working on {} with {}m grid width'.format(pcd_sector, side_length))
+
+            pcd_sector_data = pcd_sector_geotypes[pcd_sector]
+
+            # if not pcd_sector_data['lad'] == 'E07000008':
+            #     continue
 
             print('Creating a results folder (if one does not exist already)')
             folder = os.path.join(BASE_PATH, '..', 'results', str(pcd_sector))
@@ -301,28 +372,39 @@ if __name__ == '__main__':
 
             print('Intersecting grid with collected and building points layers')
             if len(buildings) > 0:
-                postcode_aps = intersect_grid_w_points(grid, points_subset, buildings)
+                postcode_aps = intersect_grid_w_points(grid, points_subset, buildings, pcd_sector_data)
                 if len(postcode_aps) > 0:
-                    postcode_aps.to_file( os.path.join(folder, 'postcode_aps_{}.shp'.format(side_length)), crs='epsg:27700')
-                    postcode_aps.to_csv(os.path.join(folder, 'postcode_aps_{}.csv'.format(side_length)), index=False)
+                    if not type(postcode_aps) is str:
+                        postcode_aps.to_file( os.path.join(folder, 'postcode_aps_gridded_{}.shp'.format(side_length)), crs='epsg:27700')
+                        postcode_aps.to_csv(os.path.join(folder, 'postcode_aps_gridded_{}.csv'.format(side_length)), index=False)
+                    else:
+                        print('Unable to process {}'.format(pcd_sector))
+                        print(pcd_sector)
+                        problem_pcd_sectors.append(str(pcd_sector))
             else:
                 pass
 
-            print('Plot results')
-            try:
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "building_count",
-                    'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2', 'Building count')
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "res_count",
-                    'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "floor_area",
-                    'aps_km2_vs_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "building_count_km2",
-                    'aps_vs_building_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Building count (km^2)')
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "res_count_km2",
-                    'aps_km2_vs_res_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count (km^2)')
-                plot_results(postcode_aps, pcd_sector, "waps_km2", "floor_area_km2",
-                    'aps_km2_vs_floor_area_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
-            except:
-                pass
+            # print('Plot results')
+            # try:
+            #     plot_results(postcode_aps, pcd_sector, "waps_km2", "waps_collected",
+            #         'aps_vs_waps_collected_{}'.format(side_length), 'Wigle APs per km^2', 'Wigle APs')
+            #     plot_results(postcode_aps, pcd_sector, "waps_km2", "building_count",
+            #         'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2', 'Building count')
+            #     plot_results(postcode_aps, pcd_sector, "waps_km2", "res_count",
+            #         'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
+            #     plot_results(postcode_aps, pcd_sector, "waps_km2", "floor_area",
+            #         'aps_km2_vs_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
+            #     plot_results(postcode_aps, pcd_sector, "waps_km2", "adjusted_floor_area",
+            #         'aps_vs_adjusted_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Adjusted Floor area (km^2)')
+            # except:
+            #     pass
 
         print('Completed script')
+        print('----------------')
+        print('----------------')
+        print('----------------')
+        print('Unable to process the following pcd_sectors {}'.format(problem_pcd_sectors))
+        problem_pcd_sectors = pd.DataFrame(problem_pcd_sectors)
+        folder = os.path.join(BASE_PATH, '..', 'results')
+        path = os.path.join(folder, 'problem_pcd_sectors.csv')
+        problem_pcd_sectors.to_csv(path)
