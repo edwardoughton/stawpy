@@ -1,6 +1,6 @@
 """
 This script goes into each postcode sector results folder and
-imports any data, ready to plot for all areas.
+imports any gridded data, ready to plot for all areas.
 
 Written by Ed Oughton
 
