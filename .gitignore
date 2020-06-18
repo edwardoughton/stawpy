@@ -129,15 +129,17 @@ dmypy.json
 .pyre/
 
 # data
-/data/population/*
-/data/employment/*
-/data/shapes/*
-/data/daytime_employment/*
-/data/wigle/*
-/data/buildings/*
-/data/prems_by_lad/*
-/data/codepoint/*
-/data/intermediate/*
+# /data/population/*
+# /data/employment/*
+# /data/shapes/*
+# /data/daytime_employment/*
+# /data/wigle/*
+# /data/buildings/*
+# /data/prems_by_lad/*
+# /data/codepoint/*
+# /data/codepoint/*
+# /data/intermediate/*
+/data/*
 /results/*
 /vis/images/*
 /vis/movies/*

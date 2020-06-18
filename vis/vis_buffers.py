@@ -264,6 +264,8 @@ if __name__ == '__main__':
 
         postcode_aps = pd.DataFrame(all_data)
 
+        postcode_aps.to_csv(os.path.join(RESULTS_PATH, 'all_buffered_points_{}m.csv'.format(side_length)))
+
         sample_size = len(postcode_aps)
 
         plot_results(postcode_aps, "waps_collected", "building_count",
