@@ -9,6 +9,7 @@ import pandas as pd
 import geopandas as gpd
 import math
 import random
+from tqdm import tqdm
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
@@ -25,7 +26,7 @@ def load_business_counts(path):
     """
     output = []
 
-    data = pd.read_csv(path)#[:1]
+    data = pd.read_csv(path)#[:10]
 
     data = data.to_dict('records')
 
@@ -230,11 +231,16 @@ def load_household_deomgraphics(folder, unique_area_ids, lookup, hh_adoption,
     IZ area.
 
     """
-    for area_id in unique_area_ids:#[:1]:
+    output = []
+
+    for area_id in tqdm(unique_area_ids):#[:2]:
 
         lad_id = lookup[area_id]
 
         path = os.path.join(folder, 'ass_{}_MSOA11_2018.csv'.format(lad_id))
+
+        if not os.path.exists(path):
+            continue
 
         area_data = pd.read_csv(path)
 
@@ -249,7 +255,11 @@ def load_household_deomgraphics(folder, unique_area_ids, lookup, hh_adoption,
 
         estimated_data = estimate_wifi_access(estimated_data, hh_adoption)
 
-    return estimated_data
+        estimated_data = aggregate_data(estimated_data, area_id)
+
+        output.append(estimated_data)
+
+    return output
 
 
 def get_area_features(area_id, area_data):
@@ -382,68 +392,71 @@ def estimate_wifi_access(estimated_data, hh_adoption):
     return output
 
 
-def aggregate_data(results, unique_area_ids):
+def aggregate_data(results, area_id):
     """
 
     """
-    output = []
+    households = 0
+    hh_fixed_access = 0
+    hh_wifi_access = 0
 
-    for area_id in unique_area_ids:
+    for item in results:
+        if area_id == item['Area']:
 
-        households = 0
-        hh_fixed_access = 0
-        hh_wifi_access = 0
+            households += 1
 
-        for item in results:
-            if area_id == item['Area']:
+            if item['hh_fixed_access'] == 1:
+                hh_fixed_access += 1
+            if item['hh_wifi_access'] == 1:
+                hh_wifi_access += 1
 
-                households += 1
+    if hh_fixed_access > 0 or households > 0:
+        perc_hh_fixed_access = (hh_fixed_access / households) * 100
+    else:
+        perc_hh_fixed_access = 0
 
-                if item['hh_fixed_access'] == 1:
-                    hh_fixed_access += 1
-                if item['hh_wifi_access'] == 1:
-                    hh_wifi_access += 1
+    if hh_fixed_access > 0 or households > 0:
+        perc_hh_wifi_access = (hh_wifi_access / households) * 100
+    else:
+        perc_hh_wifi_access = 0
 
-        # if not hh_fixed_access == 0 and households == 0:
-        #     perc_hh_fixed_access = (hh_fixed_access / households) * 100
-        # else:
-        #     perc_hh_fixed_access = 0
-
-        # if not hh_fixed_access == 0 and households == 0:
-        #     perc_hh_wifi_access = (hh_wifi_access / households) * 100
-        # else:
-        #     perc_hh_wifi_access = 0
-
-        output.append({
-            'Area': area_id,
-            # 'region': hh_head['region'],
-            # 'lad_id': hh_head['lad_id'],
-            # 'urban_rural': hh_head['urban_rural'],
-            'hh_fixed_access': hh_fixed_access,
-            'hh_wifi_access': hh_wifi_access,
-            'households': households,
-            # 'perc_hh_fixed_access': perc_hh_fixed_access,
-            # 'perc_hh_wifi_access': perc_hh_wifi_access,
-        })
-
-    return output
+    return {
+        'Area': area_id,
+        # 'region': hh_head['region'],
+        # 'lad_id': hh_head['lad_id'],
+        # 'urban_rural': hh_head['urban_rural'],
+        'hh_fixed_access': hh_fixed_access,
+        'hh_wifi_access': hh_wifi_access,
+        'households': households,
+        'perc_hh_fixed_access': perc_hh_fixed_access,
+        'perc_hh_wifi_access': perc_hh_wifi_access,
+    }
 
 
 if __name__ == '__main__':
 
-    print('--Working on estimating business adoption')
+    print('----Working on estimating business adoption')
+    print('----')
 
     print('Loading local business counts')
     path = os.path.join(BASE_PATH, 'ons_local_business_counts', 'business_counts.csv')
     businesses, unique_area_ids = load_business_counts(path)
 
-    # print('Loading local internet access statistics')
-    # bussiness_adoption = internet_access_by_business()
+    # unique_area_ids = unique_area_ids[:4]
 
-    # print('Estimate adoption')
-    # adopted = estimate_adoption_rates(businesses, bussiness_adoption)
+    print('Loading local internet access statistics')
+    bussiness_adoption = internet_access_by_business()
 
-    print('--Working on estimating household adoption')
+    print('Estimate adoption')
+    results = estimate_adoption_rates(businesses, bussiness_adoption)
+
+    print('Exporting business adoption results')
+    results = pd.DataFrame(results)
+    path = os.path.join(BASE_PATH, '..', 'results', 'business_adoption.csv')
+    results.to_csv(path, index=False)
+
+    print('----Working on estimating household adoption')
+    print('----')
 
     print('Loading msoa/iz areas to LAD lookup table')
     path = os.path.join(BASE_PATH, 'msoa_lut', 'gb_msoa_lut.csv')
@@ -470,9 +483,7 @@ if __name__ == '__main__':
         area_features
     )
 
-    print('Aggregating results')
-    results = aggregate_data(results, unique_area_ids)
-
-    print('Exporting results')
+    print('Exporting household adoption results')
     results = pd.DataFrame(results)
-    results.to_csv(os.path.join(BASE_PATH, '..', 'results', 'adoption_estimates.csv'))
+    path = os.path.join(BASE_PATH, '..', 'results', 'household_adoption.csv')
+    results.to_csv(path, index=False)
