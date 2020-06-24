@@ -83,17 +83,17 @@ def load_single_file(path):
     return output
 
 
-def get_pcd_list(collected_data, pcd_sector_shapes):
+def get_oa_list(collected_data, shapes):
     """
     Count data points per postcode and subset those with data.
 
     """
     f = lambda x:np.sum(collected_data.intersects(x))
-    pcd_sector_shapes['waps_collected'] = pcd_sector_shapes['geometry'].apply(f)
+    shapes['waps_collected'] = shapes['geometry'].apply(f)
 
-    pcd_sector_shapes = pcd_sector_shapes.loc[pcd_sector_shapes['waps_collected'] > 0]
+    shapes = shapes.loc[shapes['waps_collected'] > 0]
 
-    pcd_list = pcd_sector_shapes['StrSect'].unique()
+    pcd_list = shapes['lower_id'].unique()
 
     return pcd_list
 
@@ -118,18 +118,18 @@ if __name__ == '__main__':
         print('Loading existing processed collected points')
         collected_data = gpd.read_file(path, crs='epsg:27700')#[:1000]
 
-    print('Loading postcode sector shapes')
-    path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
-    pcd_sector_shapes = gpd.read_file(path)#[:100]
-    pcd_sector_shapes.crs = 'epsg:27700'
-    pcd_sector_shapes = pcd_sector_shapes.to_crs('epsg:27700')
+    print('Loading os area shapes')
+    path = os.path.join(folder, 'output_areas.shp')
+    shapes = gpd.read_file(path)#[:100]
+    shapes.crs = 'epsg:27700'
+    shapes = shapes.to_crs('epsg:27700')
 
-    print('Getting postcode list')
+    print('Getting oa list')
     #subset just cambridge postcodes for speed up
-    #pcd_sector_shapes = pcd_sector_shapes.loc[pcd_sector_shapes['StrSect'].str.startswith('CB')]
-    pcd_list = get_pcd_list(collected_data, pcd_sector_shapes)
+    #shapes = shapes.loc[shapes['StrSect'].str.startswith('CB')]
+    oa_list = get_oa_list(collected_data, shapes)
 
     print('Writing list')
-    path = os.path.join(folder, 'pcd_list.csv')
-    pcd_list = pd.DataFrame({'StrSect':pcd_list})
-    pcd_list.to_csv(path, index=False)
+    path = os.path.join(folder, 'oa_list.csv')
+    oa_list = pd.DataFrame({'lower_id':oa_list})
+    oa_list.to_csv(path, index=False)

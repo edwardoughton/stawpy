@@ -1,5 +1,5 @@
 """
-Process building information into postcode sectors.
+Process premises information into output areas.
 
 Written by Ed Oughton
 
@@ -20,27 +20,27 @@ CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
 
 
-def subset_areas_with_data(pcd_sectors, pcd_sector_shapes):
+def subset_areas_with_data(oa_areas, oa_area_shapes):
     """
 
     """
     shapes = []
     points = []
 
-    for idx, pcd_sector_shape in pcd_sector_shapes.iterrows():
-        if pcd_sector_shape['StrSect'] in pcd_sectors:
+    for idx, oa_area_shape in oa_area_shapes.iterrows():
+        if oa_area_shape['lower_id'] in oa_areas:
             shapes.append({
                 'type': 'Feature',
-                'geometry': mapping(pcd_sector_shape['geometry']),
+                'geometry': mapping(oa_area_shape['geometry']),
                 'properties': {
-                    'StrSect': pcd_sector_shape['StrSect'],
+                    'lower_id': oa_area_shape['lower_id'],
                 }
             })
             points.append({
                 'type': 'Feature',
-                'geometry': mapping(pcd_sector_shape['geometry'].representative_point()),
+                'geometry': mapping(oa_area_shape['geometry'].representative_point()),
                 'properties': {
-                    'StrSect': pcd_sector_shape['StrSect'],
+                    'lower_id': oa_area_shape['lower_id'],
                 }
             })
 
@@ -50,62 +50,62 @@ def subset_areas_with_data(pcd_sectors, pcd_sector_shapes):
     return shapes, points
 
 
-def get_lad_list(lads, pcd_points):
+def get_lad_list(lads, oa_points):
     """
 
     """
-    pcd_points = gpd.overlay(pcd_points, lads, how='intersection')
+    oa_points = gpd.overlay(oa_points, lads, how='intersection')
 
-    lad_list = pcd_points['name'].to_list()
+    lad_list = oa_points['name'].to_list()
 
-    return pcd_points, lad_list
+    return oa_points, lad_list
 
 
-def get_postcode_sector_boundaries(lad_id, pcd_points, pcd_shapes):
+def get_oa_area_boundaries(lad_id, oa_points, oa_shapes):
     """
 
     """
-    pcd_subset = pcd_points.loc[pcd_points['name'] == lad_id]
+    pcd_subset = oa_points.loc[oa_points['name'] == lad_id]
 
-    pcds_in_lad_list = pcd_subset['StrSect'].to_list()
+    pcds_in_lad_list = pcd_subset['lower_id'].to_list()
 
-    pcd_shapes_subset = []
+    oa_shapes_subset = []
 
-    for idx, pcd_shape in pcd_shapes.iterrows():
-        if pcd_shape['StrSect'] in pcds_in_lad_list:
-            pcd_shapes_subset.append({
+    for idx, pcd_shape in oa_shapes.iterrows():
+        if pcd_shape['lower_id'] in pcds_in_lad_list:
+            oa_shapes_subset.append({
                 'type': 'Feature',
                 'geometry': mapping(pcd_shape['geometry']),
                 'properties': {
-                    'StrSect': pcd_shape['StrSect'],
+                    'lower_id': pcd_shape['lower_id'],
                 }
             })
 
-    pcd_shapes_subset = gpd.GeoDataFrame.from_features(pcd_shapes_subset)
+    oa_shapes_subset = gpd.GeoDataFrame.from_features(oa_shapes_subset)
 
-    return pcd_shapes_subset
+    return oa_shapes_subset
 
 
 if __name__ == '__main__':
 
-    print('Loading postcode list')
-    path = os.path.join(BASE_PATH, 'intermediate', 'pcd_list.csv')
-    pcd_sectors = pd.read_csv(path)
-    pcd_sectors = pcd_sectors['StrSect'].tolist()
+    # print('Loading oa list')
+    # path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
+    # oa_areas = pd.read_csv(path)
+    # oa_areas = oa_areas['lower_id'].tolist()
 
-    print('Load and subset postcode sectors')
-    path = os.path.join(BASE_PATH, 'shapes', 'PostalSector.shp')
-    pcd_shapes = gpd.read_file(path)
-    pcd_shapes.crs = 'epsg:27700'
-    pcd_shapes = pcd_shapes.to_crs('epsg:27700')
-    pcd_shapes, pcd_points = subset_areas_with_data(pcd_sectors, pcd_shapes)
+    print('Load and subset oa areas')
+    path = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
+    oa_shapes = gpd.read_file(path)
+    oa_shapes.crs = 'epsg:27700'
+    oa_shapes = oa_shapes.to_crs('epsg:27700')
+    oa_shapes, oa_points = subset_areas_with_data(oa_areas, oa_shapes)
 
     print('Load and subset lads')
     path = os.path.join(BASE_PATH, 'shapes', 'lad_uk_2016-12.shp')
     lads = gpd.read_file(path, crs='epsg:27700')
-    pcd_points.crs = 'epsg:27700'
+    oa_points.crs = 'epsg:27700'
 
-    pcd_points, lad_list = get_lad_list(lads, pcd_points)
+    oa_points, lad_list = get_lad_list(lads, oa_points)
 
     for lad_id in lad_list:
 
@@ -142,28 +142,28 @@ if __name__ == '__main__':
 
         prems_by_lad = gpd.GeoDataFrame.from_features(prems_by_lad)
 
-        pcd_shapes_subset = get_postcode_sector_boundaries(lad_id, pcd_points, pcd_shapes)
+        oa_shapes_subset = get_oa_area_boundaries(lad_id, oa_points, oa_shapes)
 
         lad_folder = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id)
         if not os.path.exists(lad_folder):
             os.makedirs(lad_folder)
 
-        for pcd_shape_id in pcd_shapes_subset['StrSect'].unique():
+        for oa_shape_id in oa_shapes_subset['lower_id'].unique():
 
-            # if not pcd_shape_id == 'CB41':
+            # if not oa_shape_id == 'CB41':
             #     continue
 
-            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.csv')
+            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.csv')
 
             if not os.path.exists(path):
 
-                print('Working on {}'.format(pcd_shape_id))
+                print('Working on {}'.format(oa_shape_id))
 
-                curent_pcd_sector = pcd_shapes_subset.loc[pcd_shapes_subset['StrSect'] == pcd_shape_id]
+                curent_oa = oa_shapes_subset.loc[oa_shapes_subset['lower_id'] == oa_shape_id]
 
-                prems_within_pcd = gpd.overlay(prems_by_lad, curent_pcd_sector, how='intersection')
+                prems_within_oa = gpd.overlay(prems_by_lad, curent_oa, how='intersection')
 
-                prems_within_pcd.to_csv(path, index=False)
+                prems_within_oa.to_csv(path, index=False)
 
-                path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, pcd_shape_id + '.shp')
-                prems_within_pcd.to_file(path, crs='epsg:27700')
+                path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.shp')
+                prems_within_oa.to_file(path, crs='epsg:27700')

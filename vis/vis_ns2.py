@@ -1,6 +1,5 @@
 """
-This script goes into each postcode sector results folder and
-imports any buffered data, ready to plot for all areas.
+Visualize OA estimates using self-collected (sc) data.
 
 Written by Ed Oughton
 
@@ -23,38 +22,21 @@ BASE_PATH = CONFIG['file_locations']['base_path']
 RESULTS_PATH = CONFIG['file_locations']['results']
 
 
-def define_geotypes(pcd_sector_geotypes):
+def define_geotypes(oa_geotypes):
     """
 
     """
     output = {}
 
-    for idx, row in pcd_sector_geotypes.iterrows():
+    for idx, row in oa_geotypes.iterrows():
 
-        pop_density_km2 = round(row['population'] / row['area_km2'])
-
-        if pop_density_km2 > 7959:
-            row['geotype'] = 'urban'
-        # elif pop_density_km2 > 3119:
-        #     row['geotype'] = 'suburban 1'
-        elif pop_density_km2 > 782:
-            row['geotype'] = 'suburban' #'suburban 2'
-        # elif pop_density_km2 > 112:
-        #     row['geotype'] = 'rural 1'
-        # elif pop_density_km2 > 47:
-        #     row['geotype'] = 'rural 2'
-        # elif pop_density_km2 > 25:
-        #     row['geotype'] = 'rural 3'
-        # elif pop_density_km2 > 0:
-        #     row['geotype'] = 'rural 4'
-        else:
-            row['geotype'] = 'rural' #'rural 5'
-
-        output[row['id']] = {
+        output[row['lower_id']] = {
             'lad': row['lad'],
+            'region': row['region'],
             'population': row['population'],
             'area_km2': row['area_km2'],
-            'pop_density_km2': pop_density_km2,
+            'pop_density_km2': row['pop_density_km2'],
+            'households': row['households'],
             'geotype': row['geotype'],
         }
 
@@ -213,32 +195,31 @@ if __name__ == '__main__':
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    path = os.path.join(BASE_PATH, 'intermediate', 'pcd_list.csv')
-    pcd_sectors = pd.read_csv(path)
-    pcd_sectors = pcd_sectors['StrSect'].unique()
+    path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
+    oa_areas = pd.read_csv(path)
+    oa_areas = oa_areas['lower_id'].unique()
 
-    filename = 'pcd_sector_geotypes.csv'
-    path = os.path.join(BASE_PATH, 'pcd_sector_geotypes', filename)
-    pcd_sector_geotypes = pd.read_csv(path)
-    all_pcd_sector_data = define_geotypes(pcd_sector_geotypes)
+    filename = 'oa_lookup.csv'
+    path = os.path.join(BASE_PATH, 'intermediate', filename)
+    oa_geotypes = pd.read_csv(path)
+    oa_geotypes = define_geotypes(oa_geotypes)
+
+    side_lengths = [100]
 
     all_data = []
 
-    side_lengths = [100, 300]
-
     for side_length in side_lengths:
-
-        for pcd_sector in pcd_sectors:
+        for oa_area in oa_areas:
 
             # if not pcd_sector == 'CB11':
             #     continue
 
-            directory = os.path.join(RESULTS_PATH, pcd_sector)
+            directory = os.path.join(RESULTS_PATH, oa_area)
             filename = 'postcode_aps_buffered_{}.csv'.format(side_length)
             path = os.path.join(directory, filename)
 
-            if pcd_sector in [p for p in all_pcd_sector_data.keys()]:
-                pcd_sector_data = all_pcd_sector_data[pcd_sector]
+            if oa_area in [p for p in oa_geotypes.keys()]:
+                oa_data = oa_geotypes[oa_area]
             else:
                 continue
 
@@ -247,13 +228,13 @@ if __name__ == '__main__':
             # if not pcd_sector_data['lad'] == 'E07000008':
             #     continue
 
-            print('-- Getting data for {}'.format(pcd_sector))
+            print('-- Getting data for {}'.format(oa_area))
 
             if os.path.exists(path):
 
                 data = pd.read_csv(path)
 
-                geotype =  pcd_sector_data['geotype']
+                geotype =  oa_data['geotype']
                 data['geotype'] = geotype
 
                 data = data.to_dict('records')
@@ -262,31 +243,33 @@ if __name__ == '__main__':
             else:
                 pass
 
-        postcode_aps = pd.DataFrame(all_data)
+        aps = pd.DataFrame(all_data)
 
-        postcode_aps.to_csv(os.path.join(RESULTS_PATH, 'all_buffered_points_{}m.csv'.format(side_length)))
+        filename = 'all_buffered_points_{}m.csv'.format(side_length)
+        path_output = os.path.join(RESULTS_PATH, filename)
+        aps.to_csv(path_output, index=False)
 
-        sample_size = len(postcode_aps)
+        sample_size = len(aps)
 
-        plot_results(postcode_aps, "waps_collected", "building_count",
+        plot_results(aps, "waps_collected", "building_count",
             'waps_vs_building_count_{}'.format(side_length), 'Wigle APs',
             'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
-        plot_results(postcode_aps, "waps_km2", "building_count",
+        plot_results(aps, "waps_km2", "building_count",
             'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2',
             'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
-        # plot_results(postcode_aps, "waps_km2", "res_count",
-        #     'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
-        # plot_results(postcode_aps, "waps_km2", "floor_area",
-        #     'aps_km2_vs_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
-        # plot_results(postcode_aps, "waps_km2", "building_count_km2",
-        #     'aps_vs_building_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Building count (km^2)')
-        # plot_results(postcode_aps, "waps_km2", "res_count_km2",
-        #     'aps_km2_vs_res_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count (km^2)')
-        # plot_results(postcode_aps, "waps_km2", "floor_area_km2",
-        #     'aps_km2_vs_floor_area_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
+        # # plot_results(aps, "waps_km2", "res_count",
+        # #     'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
+        # # plot_results(aps, "waps_km2", "floor_area",
+        # #     'aps_km2_vs_floor_area_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
+        # # plot_results(aps, "waps_km2", "building_count_km2",
+        # #     'aps_vs_building_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Building count (km^2)')
+        # # plot_results(aps, "waps_km2", "res_count_km2",
+        # #     'aps_km2_vs_res_count_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count (km^2)')
+        # # plot_results(aps, "waps_km2", "floor_area_km2",
+        # #     'aps_km2_vs_floor_area_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
 
-        #Plot correlations
-        pairwise(postcode_aps, folder, 'pairwise_buffered_{}'.format(side_length))
+        # #Plot correlations
+        # pairwise(aps, folder, 'pairwise_buffered_{}'.format(side_length))
 
-        #plot histograms
-        histograms(postcode_aps, folder, side_length)
+        # #plot histograms
+        # histograms(aps, folder, side_length)
