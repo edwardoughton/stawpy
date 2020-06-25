@@ -9,7 +9,7 @@ import pandas as pd
 import geopandas as gpd
 import math
 import random
-from shapely.geometry import mapping
+from shapely.geometry import mapping, MultiPolygon
 from tqdm import tqdm
 
 CONFIG = configparser.ConfigParser()
@@ -28,15 +28,24 @@ def process_shapes(path_output, path_ew, path_scot, lookup):
 
     if not os.path.exists(os.path.join(folder, 'output_areas.csv')):
 
-        data_ew = gpd.read_file(path_ew, crs='epsg:27700')#[:100]
+        data_ew = gpd.read_file(path_ew, crs='epsg:27700')#[:10]
         data_ew = data_ew[['msoa11cd', 'geometry']]
         data_ew.columns = ['msoa', 'geometry']
 
-        data_scot = gpd.read_file(path_scot, crs='epsg:27700')#[:100]
+        data_scot = gpd.read_file(path_scot, crs='epsg:27700')#[:200]
         data_scot = data_scot[['InterZone', 'geometry']]
         data_scot.columns = ['msoa', 'geometry']
 
         all_data = data_ew.append(data_scot, ignore_index=True)
+
+        all_data['geometry'] = all_data.apply(remove_small_shapes, axis=1)
+
+        all_data['geometry'] = all_data.simplify(
+            tolerance = 10,
+            preserve_topology=True).buffer(0.0001).simplify(
+                tolerance = 10,
+                preserve_topology=True
+            )
 
         all_data['area_km2'] = all_data['geometry'].area / 1e6
 
@@ -56,6 +65,40 @@ def process_shapes(path_output, path_ew, path_scot, lookup):
         all_data = pd.read_csv(os.path.join(folder, 'output_areas.csv'))
 
     return all_data
+
+
+def remove_small_shapes(x):
+    """
+
+    """
+    # if its a single polygon, just return the polygon geometry
+    if x.geometry.geom_type == 'Polygon':
+        return x.geometry
+
+    # if its a multipolygon, we start trying to simplify
+    # and remove shapes if its too big.
+    elif x.geometry.geom_type == 'MultiPolygon':
+
+        area1 = 1e7
+        area2 = 5e7
+
+        # dont remove shapes if total area is already very small
+        if x.geometry.area < area1:
+            return x.geometry
+
+        if x.geometry.area > area2:
+            threshold = 5e6
+        else:
+            threshold = 5e6
+
+        # save remaining polygons as new multipolygon for
+        # the specific country
+        new_geom = []
+        for y in x.geometry:
+            if y.area > threshold:
+                new_geom.append(y)
+
+        return MultiPolygon(new_geom)
 
 
 def process_area_features(path_output, all_data):
@@ -338,24 +381,6 @@ def get_area_stats(msoa, lad, hh_folder, prems_folder):
     }
 
 
-def process_oa_shapes(path):
-    """
-    Load in the output area shapes, merge with the MSOA lookup table.
-
-    """
-    path_shapes = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
-    oa_shapes = gpd.read_file(path_shapes, crs='epsg:27700')
-    oa_shapes.set_index('msoa')
-    oa_shapes = oa_shapes[['msoa', 'geometry']]
-
-    results = pd.read_csv(path)
-    results.set_index('msoa')
-
-    output = (pd.merge(oa_shapes, results, on='msoa'))
-
-    return output
-
-
 if __name__ == '__main__':
 
     print('----Working on preprocessing of OA areas')
@@ -395,8 +420,3 @@ if __name__ == '__main__':
     results = pd.DataFrame(results)
     path = os.path.join(BASE_PATH, 'intermediate', 'oa_lookup.csv')
     results.to_csv(path, index=False)
-
-    print('Process OA shapes')
-    shapes = process_oa_shapes(path)
-    path = os.path.join(BASE_PATH, 'intermediate', 'oa_shapes_with_data.shp')
-    shapes.to_file(path, crs='epsg:27700')

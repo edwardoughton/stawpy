@@ -1,5 +1,5 @@
 """
-Visualize OA estimates using self-collected (sc) data.
+Visualize MSOA estimates using self-collected (sc) data.
 
 Written by Ed Oughton
 

@@ -187,7 +187,6 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup):
     fa_medium = (emp_medium / emp_total) * floor_area
     fa_large = (emp_large / emp_total) * floor_area
     fa_very_large = (emp_very_large / emp_total) * floor_area
-    total_businesses = bus_counts['total']
 
     #fa_ stands for Adopted Floor Area (m2)
     afa_micro = fa_micro * bussiness_adoption['micro']
@@ -204,24 +203,25 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup):
 
     return {
         'area_type': bus_counts['area_type'],
+        'businesses': total_businesses,
         'ba_micro': ba_micro,
         'ba_small': ba_small,
         'ba_medium': ba_medium,
         'ba_large': ba_large,
         'ba_very_large': ba_very_large,
-        'ba_total': total_businesses,
-        'afa_micro': fa_micro,
-        'afa_small': fa_small,
-        'afa_medium': fa_medium,
-        'afa_large': fa_large,
-        'afa_very_large': fa_very_large,
-        'afa_total': fa_micro + fa_small + fa_medium + fa_large,
-        'aps_micro': aps_micro,
-        'aps_small': aps_small,
-        'aps_medium': aps_medium,
-        'aps_large': aps_large,
-        'aps_very_large': aps_very_large,
-        'aps_total': aps_micro + aps_small + aps_medium + aps_large,
+        'ba_total': ba_micro + ba_small + ba_medium + ba_large + ba_very_large,
+        'bafa_micro': fa_micro,
+        'bafa_small': fa_small,
+        'bafa_medium': fa_medium,
+        'bafa_large': fa_large,
+        'bafa_very_large': fa_very_large,
+        'bafa_total': fa_micro + fa_small + fa_medium + fa_large + fa_very_large,
+        'baps_micro': aps_micro,
+        'baps_small': aps_small,
+        'baps_medium': aps_medium,
+        'baps_large': aps_large,
+        'baps_very_large': aps_very_large,
+        'baps_total': aps_micro + aps_small + aps_medium + aps_large + aps_very_large,
     }
 
 
@@ -382,7 +382,7 @@ def aggregate_data(business_data, estimated_data, area_id, lookup, lad_id):
         perc_hh_wifi_access = 0
 
     return {
-        'Area': area_id,
+        'msoa': area_id,
         'area_km2': area_km2,
         'population': lookup[area_id]['population'],
         'population_km2': lookup[area_id]['population'] / area_km2,
@@ -397,24 +397,30 @@ def aggregate_data(business_data, estimated_data, area_id, lookup, lad_id):
         'perc_hh_wifi_access': perc_hh_wifi_access,
         'region': lookup[area_id]['region'],
         'lad_id': lad_id,
+        'businesses': business_data['businesses'],
+        'business_density_km2': business_data['businesses'] / area_km2,
+        #busines adoption - ba_
         'ba_micro': business_data['ba_micro'],
         'ba_small': business_data['ba_small'],
         'ba_medium': business_data['ba_medium'],
         'ba_large': business_data['ba_large'],
         'ba_very_large': business_data['ba_very_large'],
         'ba_total': business_data['ba_total'],
-        'afa_micro': business_data['afa_micro'],
-        'afa_small': business_data['afa_small'],
-        'afa_medium': business_data['afa_medium'],
-        'afa_large': business_data['afa_large'],
-        'afa_very_large': business_data['afa_very_large'],
-        'afa_total': business_data['afa_total'],
-        'aps_micro': business_data['aps_micro'],
-        'aps_small': business_data['aps_small'],
-        'aps_medium': business_data['aps_medium'],
-        'aps_large': business_data['aps_large'],
-        'aps_very_large': business_data['aps_very_large'],
-        'aps_total': business_data['aps_total'],
+        #busines adoption floor area - bafa_
+        'bafa_micro': business_data['bafa_micro'],
+        'bafa_small': business_data['bafa_small'],
+        'bafa_medium': business_data['bafa_medium'],
+        'bafa_large': business_data['bafa_large'],
+        'bafa_very_large': business_data['bafa_very_large'],
+        'bafa_total': business_data['bafa_total'],
+        #business access points - baps_
+        'baps_micro': business_data['baps_micro'],
+        'baps_small': business_data['baps_small'],
+        'baps_medium': business_data['baps_medium'],
+        'baps_large': business_data['baps_large'],
+        'baps_very_large': business_data['baps_very_large'],
+        'baps_total': business_data['baps_total'],
+        'baps_density_km2': business_data['baps_total'] / area_km2,
     }
 
 
