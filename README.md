@@ -1,4 +1,4 @@
-# strawpy
+# wawpy
 Wardriving Analytics for WiFi with Python (wawpy)
 
 ### Description
