@@ -30,7 +30,7 @@ def define_geotypes(oa_geotypes):
 
     for idx, row in oa_geotypes.iterrows():
 
-        output[row['lower_id']] = {
+        output[row['msoa']] = {
             'lad': row['lad'],
             'region': row['region'],
             'population': row['population'],
@@ -196,7 +196,7 @@ if __name__ == '__main__':
 
     path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
     oa_areas = pd.read_csv(path)
-    oa_areas = oa_areas['lower_id'].unique()
+    oa_areas = oa_areas['msoa'].unique()
 
     filename = 'oa_lookup.csv'
     path = os.path.join(BASE_PATH, 'intermediate', filename)
@@ -216,11 +216,8 @@ if __name__ == '__main__':
 
         for oa_area in oa_areas:
 
-            # if not pcd_sector == 'CB11':
-            #     continue
-
             directory = os.path.join(RESULTS_PATH, oa_area)
-            filename = 'postcode_aps_buffered_{}.csv'.format(side_length)
+            filename = 'oa_aps_buffered_{}.csv'.format(side_length)
             path = os.path.join(directory, filename)
 
             if oa_area in [p for p in oa_geotypes.keys()]:
@@ -257,9 +254,9 @@ if __name__ == '__main__':
         plot_results(aps, "waps_collected", "building_count",
             'waps_vs_building_count_{}'.format(side_length), 'Wigle APs',
             'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
-        plot_results(aps, "waps_km2", "building_count",
-            'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2',
-            'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
+        # plot_results(aps, "waps_km2", "building_count",
+        #     'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2',
+        #     'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
         # plot_results(aps, "waps_km2", "res_count",
         #     'aps_km2_vs_res_count_{}'.format(side_length), 'Wigle APs per km^2', 'Residential count')
         # plot_results(aps, "waps_km2", "floor_area",

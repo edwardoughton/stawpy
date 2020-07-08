@@ -13,6 +13,7 @@ import pandas as pd
 import geopandas as gpd
 from pykml import parser
 from shapely.geometry import mapping, Polygon
+from shapely import wkt
 import numpy as np
 import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
@@ -30,7 +31,7 @@ def define_geotypes(oa_geotypes):
 
     for idx, row in oa_geotypes.iterrows():
 
-        output[row['lower_id']] = {
+        output[row['msoa']] = {
             'lad': row['lad'],
             'region': row['region'],
             'population': row['population'],
@@ -137,12 +138,37 @@ def process_points(points, buffer_size):
     return points
 
 
-def intersect_w_points(buffered_points, all_data, buildings, oa_data):
+def get_geojson_buildings(loaded_buildings):
     """
-    Convert point data to grid squares by intersecting.
 
     """
-    print('Intersecting grid with collected waps data')
+    output = []
+
+    for idx, building in loaded_buildings.iterrows():
+        geom = wkt.loads(building['geometry'])
+        output.append({
+            'geometry': geom.representative_point(),
+            'properties': {
+                'mfc': building['mistral_function_class'], #mistral_function_class
+                'mbc': building['mistral_building_class'], #
+                'rc': building['res_count'], #res_count
+                'fa': building['floor_area'], #res_count
+                'htrb': building['height_toroofbase'], #height_toroofbase
+                'htrt': building['height_torooftop'], #height_torooftop
+                'nrc': building['nonres_count'], #nonres_count
+                'nof': building['number_of_floors'], #number_of_floors
+                'fpa': building['footprint_area'], #footprint_area
+            }
+        })
+
+    return output
+
+def intersect_w_points(buffered_points, all_data, buildings, oa_data):
+    """
+    Convert point data to buffered points by intersecting.
+
+    """
+    print('Intersecting buffers with collected waps data')
     f = lambda x:np.sum(all_data.intersects(x))
     buffered_points['waps_collected'] = buffered_points['geometry'].apply(f)
 
@@ -159,11 +185,23 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
         merged = gpd.overlay(buildings, buffered_points, how='intersection')
     except:
         return 'Unable to complete intersection'
-
-    merged = merged[['mistral_fu', 'mistral_bu', 'res_count', 'floor_area',
-        'height_tor', 'height_t_1', 'nonres_cou', 'number_of_', 'footprint_',
-        'lower_id', 'FID', 'waps_collected', 'area_km2', 'waps_km2',]]
-    merged = merged[merged["floor_area"] > 100]
+    print(merged.columns)
+    merged = merged[[
+        'mfc',
+        'mbc',
+        'rc',
+        'fa',
+        'htrb',
+        'htrt',
+        'nrc',
+        'nof',
+        'fpa',
+        'FID',
+        'waps_collected',
+        'area_km2',
+        'waps_km2'
+    ]]
+    merged = merged[merged["fa"] > 100]
     merged = merged.to_dict('records')
 
     buffered_points_aggregated = []
@@ -177,17 +215,17 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
 
         for merged_points in merged:
             if buffered_point['FID'] == merged_points['FID']:
-                res_count += merged_points['res_count']
-                if merged_points['number_of_'] <= 2: #if number of floors < 2
-                    floor_area += merged_points['floor_area']
-                    adjusted_floor_area += merged_points['floor_area']
+                res_count += merged_points['rc']
+                if merged_points['nof'] <= 2: #if number of floors < 2
+                    floor_area += merged_points['fa']
+                    adjusted_floor_area += merged_points['fa']
                 else:
-                    floor_area += merged_points['floor_area']
+                    floor_area += merged_points['fa']
                     #assume APs at or above 3 floors can't be accessed
-                    adjusted_floor_area += (merged_points['footprint_'] * 2)
+                    adjusted_floor_area += (merged_points['fpa'] * 2)
 
                 building_count += 1
-                nonres_count += merged_points['nonres_cou']
+                nonres_count += merged_points['nrc']
 
         area_km2 = buffered_point['geometry'].area / 1e6
 
@@ -215,9 +253,9 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
     buffered_points_aggregated = gpd.GeoDataFrame.from_features(buffered_points_aggregated, crs='epsg:27700')
     buffered_points_aggregated.to_file(os.path.join(folder, 'merged.shp'), crs='epsg:27700')
 
-    print('Total grid squares {}'.format(len(buffered_points_aggregated)))
+    print('Total buffers {}'.format(len(buffered_points_aggregated)))
     buffered_points_aggregated = buffered_points_aggregated.loc[buffered_points_aggregated['floor_area'] > 0]
-    print('Subset of grid squares without rmdps data {}'.format(len(buffered_points_aggregated)))
+    print('Subset of buffers without rmdps data {}'.format(len(buffered_points_aggregated)))
 
     return buffered_points_aggregated
 
@@ -256,7 +294,7 @@ if __name__ == '__main__':
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
-    buffer_sizes = [50, 100, 200]
+    buffer_sizes = [100]#[50, 100, 200]
     problem_oa_data = []
 
     #W1H 2
@@ -267,12 +305,12 @@ if __name__ == '__main__':
 
         for idx, row in oa_data.iterrows():
 
-            oa = row['lower_id']
+            oa = row['msoa']
 
-            # if not oa == 'E02006926':
+            # if not oa == 'E02003731':
             #     continue
 
-            print('-- Working on {} with {}m grid width'.format(oa, buffer_size))
+            print('-- Working on {} with {}m buffer'.format(oa, buffer_size))
 
             oa_geotype = oa_geotypes[oa]
 
@@ -284,27 +322,27 @@ if __name__ == '__main__':
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
-            print('Getting postcode sector boundary')
+            print('Getting output area boundary')
             path = os.path.join(folder, 'boundary.shp')
             if not os.path.exists(path):
-                boundary = oa_shapes.loc[oa_shapes['lower_id'] == oa]
+                boundary = oa_shapes.loc[oa_shapes['msoa'] == oa]
                 boundary.to_file(path, crs='epsg:27700')
             else:
                 boundary = gpd.read_file(path, crs='epsg:27700')
 
-            print('Getting the LAD(s) which intersect the postcode sector')
+            print('Getting the LAD(s) which intersect the output area')
             bbox = boundary.envelope
             geo = gpd.GeoDataFrame()
             geo = gpd.GeoDataFrame({'geometry': bbox}, crs='epsg:27700')
-            # geo.crs = {'init' :'epsg:27700'}
             merged = gpd.overlay(geo, lad_shapes, how='intersection')
 
             print('Catch overlaps across lad boundaries')
             lad_ids = []
             for idx, row in merged.iterrows():
                 lad_ids.append(row['name'])
+            print('Need data for the following LADs {}'.format(lad_ids))
 
-            print('Subsetting the collected points for the postcode sector')
+            print('Subsetting the collected points for the output area')
             collected_data = os.path.join(folder, 'collected_points.shp')
             if not os.path.exists(collected_data):
                 points_subset = all_data[all_data.intersects(boundary.unary_union)]
@@ -322,34 +360,40 @@ if __name__ == '__main__':
             else:
                 buffered_points = gpd.read_file(collected_data, crs='epsg:27700')
 
-            print('Subsetting the premises data for the postcode sector')
+            print('Subsetting the premises data for the output area')
             path = os.path.join(folder, 'buildings.shp')
             buildings = gpd.GeoDataFrame()
             if not os.path.exists(path):
                 for lad_id in lad_ids:
-                    directory = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id)
-                    path_buildings = os.path.join(directory, oa + '.shp')
+                    directory = os.path.join(BASE_PATH, 'intermediate', 'prems_by_lad_msoa', lad_id)
+                    path_buildings = os.path.join(directory, oa + '.csv')
+
                     if not os.path.exists(path_buildings):
                         print('Unable to find building data for {}'.format(oa))
                         continue
                     else:
-                        loaded_buildings = gpd.read_file(path_buildings)
+                        loaded_buildings = pd.read_csv(path_buildings)
+                        loaded_buildings = get_geojson_buildings(loaded_buildings)
+                        loaded_buildings = gpd.GeoDataFrame.from_features(loaded_buildings)
                         buildings = buildings.append(loaded_buildings, ignore_index=True)
+
                     if len(buildings) > 0:
                         buildings.to_file(path, crs='epsg:27700')
                     else:
                         print('Unable to find building data for {}'.format(oa))
                         continue
+                buildings.crs = 'epsg:27700'
             else:
                 buildings = gpd.read_file(path, crs='epsg:27700')
 
             print('Intersecting buffered points with collected and building points layers')
             if len(buildings) > 0:
-                postcode_aps = intersect_w_points(buffered_points, points_subset, buildings, oa_geotype)
-                if len(postcode_aps) > 0:
-                    if not type(postcode_aps) is str:
-                        postcode_aps.to_file( os.path.join(folder, 'postcode_aps_buffered_{}.shp'.format(buffer_size)), crs='epsg:27700')
-                        postcode_aps.to_csv(os.path.join(folder, 'postcode_aps_buffered_{}.csv'.format(buffer_size)), index=False)
+                oa_aps = intersect_w_points(buffered_points, points_subset, buildings, oa_geotype)
+                oa_aps['msoa'] = oa
+                if len(oa_aps) > 0:
+                    if not type(oa_aps) is str:
+                        oa_aps.to_file( os.path.join(folder, 'oa_aps_buffered_{}.shp'.format(buffer_size)), crs='epsg:27700')
+                        oa_aps.to_csv(os.path.join(folder, 'oa_aps_buffered_{}.csv'.format(buffer_size)), index=False)
                     else:
                         print('Unable to process {}'.format(oa))
                         problem_oa_data.append(str(oa))
