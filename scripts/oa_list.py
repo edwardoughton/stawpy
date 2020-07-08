@@ -93,7 +93,7 @@ def get_oa_list(collected_data, shapes):
 
     shapes = shapes.loc[shapes['waps_collected'] > 0]
 
-    pcd_list = shapes['lower_id'].unique()
+    pcd_list = shapes['msoa'].unique()
 
     return pcd_list
 
@@ -118,7 +118,7 @@ if __name__ == '__main__':
         print('Loading existing processed collected points')
         collected_data = gpd.read_file(path, crs='epsg:27700')#[:1000]
 
-    print('Loading os area shapes')
+    print('Loading oa area shapes')
     path = os.path.join(folder, 'output_areas.shp')
     shapes = gpd.read_file(path)#[:100]
     shapes.crs = 'epsg:27700'
@@ -126,10 +126,11 @@ if __name__ == '__main__':
 
     print('Getting oa list')
     #subset just cambridge postcodes for speed up
-    #shapes = shapes.loc[shapes['StrSect'].str.startswith('CB')]
+    valids = ['East of England', 'London', 'South East']
+    shapes = shapes.loc[shapes['region'].str.startswith(tuple(valids))]
     oa_list = get_oa_list(collected_data, shapes)
 
     print('Writing list')
     path = os.path.join(folder, 'oa_list.csv')
-    oa_list = pd.DataFrame({'lower_id':oa_list})
+    oa_list = pd.DataFrame({'msoa': oa_list})
     oa_list.to_csv(path, index=False)
