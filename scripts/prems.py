@@ -28,19 +28,19 @@ def subset_areas_with_data(oa_areas, oa_area_shapes):
     points = []
 
     for idx, oa_area_shape in oa_area_shapes.iterrows():
-        if oa_area_shape['lower_id'] in oa_areas:
+        if oa_area_shape['msoa'] in oa_areas:
             shapes.append({
                 'type': 'Feature',
                 'geometry': mapping(oa_area_shape['geometry']),
                 'properties': {
-                    'lower_id': oa_area_shape['lower_id'],
+                    'msoa': oa_area_shape['msoa'],
                 }
             })
             points.append({
                 'type': 'Feature',
                 'geometry': mapping(oa_area_shape['geometry'].representative_point()),
                 'properties': {
-                    'lower_id': oa_area_shape['lower_id'],
+                    'msoa': oa_area_shape['msoa'],
                 }
             })
 
@@ -67,17 +67,17 @@ def get_oa_area_boundaries(lad_id, oa_points, oa_shapes):
     """
     pcd_subset = oa_points.loc[oa_points['name'] == lad_id]
 
-    pcds_in_lad_list = pcd_subset['lower_id'].to_list()
+    pcds_in_lad_list = pcd_subset['msoa'].to_list()
 
     oa_shapes_subset = []
 
     for idx, pcd_shape in oa_shapes.iterrows():
-        if pcd_shape['lower_id'] in pcds_in_lad_list:
+        if pcd_shape['msoa'] in pcds_in_lad_list:
             oa_shapes_subset.append({
                 'type': 'Feature',
                 'geometry': mapping(pcd_shape['geometry']),
                 'properties': {
-                    'lower_id': pcd_shape['lower_id'],
+                    'msoa': pcd_shape['msoa'],
                 }
             })
 
@@ -88,10 +88,10 @@ def get_oa_area_boundaries(lad_id, oa_points, oa_shapes):
 
 if __name__ == '__main__':
 
-    # print('Loading oa list')
-    # path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
-    # oa_areas = pd.read_csv(path)
-    # oa_areas = oa_areas['lower_id'].tolist()
+    print('Loading oa list')
+    path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
+    oa_areas = pd.read_csv(path)
+    oa_areas = oa_areas['msoa'].tolist()
 
     print('Load and subset oa areas')
     path = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
@@ -108,6 +108,9 @@ if __name__ == '__main__':
     oa_points, lad_list = get_lad_list(lads, oa_points)
 
     for lad_id in lad_list:
+
+        # if not lad_id == 'E07000008':
+        #     continue
 
         print('Loading data for {}'.format(lad_id))
 
@@ -144,26 +147,26 @@ if __name__ == '__main__':
 
         oa_shapes_subset = get_oa_area_boundaries(lad_id, oa_points, oa_shapes)
 
-        lad_folder = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id)
+        lad_folder = os.path.join(BASE_PATH, 'intermediate', 'prems_by_lad_msoa', lad_id)
         if not os.path.exists(lad_folder):
             os.makedirs(lad_folder)
 
-        for oa_shape_id in oa_shapes_subset['lower_id'].unique():
+        for oa_shape_id in oa_shapes_subset['msoa'].unique():
 
-            # if not oa_shape_id == 'CB41':
+            # if not oa_shape_id == 'E02003731':
             #     continue
 
-            path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.csv')
+            path = os.path.join(lad_folder, oa_shape_id + '.csv')
 
             if not os.path.exists(path):
 
                 print('Working on {}'.format(oa_shape_id))
 
-                curent_oa = oa_shapes_subset.loc[oa_shapes_subset['lower_id'] == oa_shape_id]
+                curent_oa = oa_shapes_subset.loc[oa_shapes_subset['msoa'] == oa_shape_id]
 
                 prems_within_oa = gpd.overlay(prems_by_lad, curent_oa, how='intersection')
 
                 prems_within_oa.to_csv(path, index=False)
 
-                path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.shp')
-                prems_within_oa.to_file(path, crs='epsg:27700')
+                # path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.shp')
+                # prems_within_oa.to_file(path, crs='epsg:27700')
