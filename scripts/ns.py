@@ -481,5 +481,5 @@ if __name__ == '__main__':
 
     print('Exporting adoption results')
     results = pd.DataFrame(output)
-    path = os.path.join(BASE_PATH, '..', 'results', 'estimated_adoption.csv')
+    path = os.path.join(BASE_PATH, '..', 'results', 'estimated_adoption_ns.csv')
     results.to_csv(path, index=False)
