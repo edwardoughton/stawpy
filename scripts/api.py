@@ -139,7 +139,7 @@ if __name__ == '__main__':
     shapes = shapes.to_crs('epsg:27700')
 
     #load in rail station locations
-    path_output = os.path.join(BASE_PATH, 'intermediate', 'rail_stations.shp')
+    path_output = os.path.join(folder, 'rail_stations.shp')
     if not os.path.exists(path_output):
         rail_stations = process_rail_stations(path_output)
     else:
