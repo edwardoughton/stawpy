@@ -21,15 +21,16 @@ import matplotlib.pyplot as plt
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
+RESULTS_PATH = CONFIG['file_locations']['results']
 
-
-def define_geotypes(oa_geotypes):
+def process_area_data(area_data):
     """
+    Convert  area data from a dataframe to a dict, with a key ID.
 
     """
     output = {}
 
-    for idx, row in oa_geotypes.iterrows():
+    for idx, row in area_data.iterrows():
 
         output[row['msoa']] = {
             'lad': row['lad'],
@@ -260,46 +261,96 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
     return buffered_points_aggregated
 
 
+def collate_data(oa_data, buffer_sizes):
+    """
+    Collect data from each area folder and place in a single csv.
+
+    """
+    #collect all data and write out a single file.
+    all_data = []
+
+    for buffer_size in buffer_sizes:
+
+        for idx, row in oa_data.iterrows():
+
+            oa_area = row['msoa']
+
+            if oa_area in [p for p in area_data.keys()]:
+                area_lut = area_data[oa_area]
+            else:
+                continue
+
+            folder = os.path.join(BASE_PATH, '..', 'results', oa_area)
+            filename = 'oa_aps_buffered_{}.csv'.format(buffer_size)
+            path = os.path.join(folder, filename)
+
+            print('-- Getting data for {}'.format(oa_area))
+
+            if os.path.exists(path):
+
+                data = pd.read_csv(path)
+
+                geotype =  area_lut['geotype']
+                data['geotype'] = geotype
+
+                data = data.to_dict('records')
+
+                all_data = all_data + data
+            else:
+                pass
+
+        aps = pd.DataFrame(all_data)
+
+        filename = 'all_buffered_points_{}m.csv'.format(buffer_size)
+        path_output = os.path.join(RESULTS_PATH, filename)
+        aps.to_csv(path_output, index=False)
+
+    return print('Completed data collation')
+
+
 if __name__ == '__main__':
 
+    print('Loading a list of the areas with data')
     path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
-    oa_data = pd.read_csv(path)
-    oa_data = oa_data.iloc[::-1]
+    oa_data = pd.read_csv(path)#[:1]
+    # oa_data = oa_data.iloc[::-1]
 
+    print('Loading in area boundary shapes')
     path = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
     oa_shapes = gpd.read_file(path)
     oa_shapes.crs = 'epsg:27700'
     oa_shapes = oa_shapes.to_crs('epsg:27700')
 
+    print('Loading in local authority district boundary shapes')
     path = os.path.join(BASE_PATH, 'shapes', 'lad_uk_2016-12.shp')
     lad_shapes = gpd.read_file(path)
     lad_shapes.crs = 'epsg:27700'
     lad_shapes = lad_shapes.to_crs('epsg:27700')
 
+    print('Processing area lookup data')
     filename = 'oa_lookup.csv'
     path = os.path.join(BASE_PATH, 'intermediate', filename)
-    oa_geotypes = pd.read_csv(path)
-    oa_geotypes = define_geotypes(oa_geotypes)
+    area_data = pd.read_csv(path)
+    area_data = process_area_data(area_data)
 
+    print('Getting filenames of kml files')
     folder_kml = os.path.join(BASE_PATH, 'wigle', 'all_kml_data')
     files = os.listdir(folder_kml)
 
+    print('Creating results folder if it does not already exist')
     results = os.path.join(BASE_PATH, '..', 'results')
     if not os.path.exists(results):
         os.makedirs(results)
 
+    print('Processing or load the collected points')
     path = os.path.join(BASE_PATH, 'intermediate', 'all_collected_points.shp')
     if not os.path.exists(path):
         all_data = load_collected_ap_data(folder_kml, files)
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
-    buffer_sizes = [100]#[50, 100, 200]
+    buffer_sizes = [100]
     problem_oa_data = []
-
-    #W1H 2
-    #W1G 6
-    #W1G 8
 
     for buffer_size in buffer_sizes:
 
@@ -312,7 +363,7 @@ if __name__ == '__main__':
 
             print('-- Working on {} with {}m buffer'.format(oa, buffer_size))
 
-            oa_geotype = oa_geotypes[oa]
+            oa_geotype = area_data[oa]
 
             # if not oa_geotype['lad'] == 'E07000008':
             #     continue
@@ -399,3 +450,8 @@ if __name__ == '__main__':
                         problem_oa_data.append(str(oa))
             else:
                 pass
+
+    print('Collect a data and place in a single csv')
+    collate_data(oa_data, buffer_sizes)
+
+    print('Finished processing self-collected (SC) data')
