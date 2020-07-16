@@ -101,7 +101,7 @@ def remove_small_shapes(x):
         return MultiPolygon(new_geom)
 
 
-def process_area_features(path_output, all_data):
+def process_area_features(path_output, data):
     """
     Load shapes and extract required urban/rural information.
 
@@ -138,7 +138,7 @@ def get_lads(path):
     for item in all_data:
         unique_lads.add(item['LAD17CD'])
 
-    # unique_lads = list(unique_lads)[:2]
+    unique_lads = list(unique_lads)#[:10]
 
     for lad in list(unique_lads):
 
@@ -166,7 +166,7 @@ def get_lads(path):
 
 def get_lookup(lad):
     """
-    Create a lookup table for all Middle Super Output Areas (MSOA) (~8,000) to
+    Create a lookup table for all Middle Super Output Areas (area) (~8,000) to
     lower-level Output Areas (~190,000).
 
     """
@@ -243,11 +243,10 @@ def write_premises_data(lad):
 
 def write_hh_data(lad):
     """
-    Get the estimated household demographics for each MSOA or Scottish
-    IZ area.
+    Get the estimated household demographics for each area.
 
     """
-    filename = 'ass_{}_MSOA11_2018.csv'.format(lad)
+    filename = 'ass_{}_area11_2018.csv'.format(lad)
     path = os.path.join(BASE_PATH, 'hh_demographics_msoa_2018', filename)
 
     if not os.path.exists(path):
@@ -276,7 +275,7 @@ def write_hh_data(lad):
 
 def generate_msoa_lookup(unique_lads, area_features):
     """
-    Load in all data for each MSOA to generate a single lookup table.
+    Load in all data for each area to generate a single lookup table.
 
     """
     output = []
@@ -290,7 +289,7 @@ def generate_msoa_lookup(unique_lads, area_features):
 
         for msoa in unique_msoas:
 
-            results = get_area_stats(msoa, lad, hh_folder, prems_folder)
+            results = get_area_stats(msoa, lad, hh_folder, prems_folder, area_features)
 
             if not results == 'path does not exist':
                 output.append(results)
@@ -298,9 +297,9 @@ def generate_msoa_lookup(unique_lads, area_features):
     return output
 
 
-def get_area_stats(msoa, lad, hh_folder, prems_folder):
+def get_area_stats(msoa, lad, hh_folder, prems_folder, area_features):
     """
-    Get the area statistics for a single MSOA.
+    Get the area statistics for a single area.
 
     """
     path = os.path.join(hh_folder, msoa + '.csv')
@@ -353,6 +352,7 @@ def get_area_stats(msoa, lad, hh_folder, prems_folder):
 
     area_km2 = area_features[msoa]['area_km2']
     region = area_features[msoa]['region'].lower().replace(' ', '')
+    # fb_aps = area_features[msoa]['fb_ap_estimate']
 
     pop_density_km2 = len(population) / area_km2
 
@@ -378,6 +378,7 @@ def get_area_stats(msoa, lad, hh_folder, prems_folder):
         'prems_non_residential': non_residential,
         'prems_non_residential_floor_area': non_residential_floor_area,
         'prems_non_residential_footprint_area': non_residential_footprint_area,
+        # 'fb_aps': fb_aps,
     }
 
 
@@ -391,10 +392,10 @@ if __name__ == '__main__':
     path_ew = os.path.join(BASE_PATH, 'msoa_shapes', filename)
     filename = 'SG_IntermediateZone_Bdry_2011.shp'
     path_scot = os.path.join(BASE_PATH, 'scottish_iz_shapes', filename)
-    filename = 'Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv'
+    filename = 'Output_Area_to_LSOA_to_area_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv'
     lookup = os.path.join(BASE_PATH, 'oa_lut', filename)
     path_output = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
-    all_data = process_shapes(path_output, path_ew, path_scot, lookup)
+    all_data = process_shapes(path_output, path_ew, path_scot, lookup)#[:10]
 
     print('Processing area features')
     path_output = os.path.join(BASE_PATH, 'intermediate', 'area_features.csv')
@@ -403,20 +404,20 @@ if __name__ == '__main__':
     print('Getting unique lads')
     filename = 'Output_Area_to_LSOA_to_MSOA_to_Local_Authority_District__December_2017__Lookup_with_Area_Classifications_in_Great_Britain.csv'
     path = os.path.join(BASE_PATH, 'oa_lut', filename)
-    unique_lads = get_lads(path)
+    unique_lads = get_lads(path)#[:1]
 
     for lad in tqdm(unique_lads):
 
-        print('Writing OA prems data to MSOA prems data (by LAD folder)')
+        print('Writing lower area premises data into each LAD folder')
         write_premises_data(lad)
 
         print('Writing household demographic data')
         write_hh_data(lad)
 
-    print('Generating msoa lookup for all data')
+    print('Generating area lookup for all data')
     results = generate_msoa_lookup(unique_lads, area_features)
 
-    print('Exporting household adoption results')
+    print('Exporting area lookup')
     results = pd.DataFrame(results)
     path = os.path.join(BASE_PATH, 'intermediate', 'oa_lookup.csv')
     results.to_csv(path, index=False)
