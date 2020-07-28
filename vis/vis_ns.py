@@ -195,17 +195,22 @@ if __name__ == '__main__':
 
     folder = os.path.join(BASE_PATH, '..', 'vis', 'figures')
 
-    print('Read MSOA results')
-    path = os.path.join(RESULTS, 'estimated_adoption.csv')
+    print('Read area results')
+    path = os.path.join(RESULTS, 'estimated_adoption_ns.csv')
     data = load_results(path)#[:100]
 
-    print('Add data to MSOA shapes')
-    shapes = process_msoa_shapes(data)
-    path = os.path.join(BASE_PATH, '..', 'results', 'oa_shapes_with_data.shp')
-    shapes.to_file(path, crs='epsg:27700')
+    # print('Add data to area shapes')
+    # shapes = process_msoa_shapes(data)
+    # path = os.path.join(BASE_PATH, '..', 'results', 'oa_shapes_with_data.shp')
+    # shapes.to_file(path, crs='epsg:27700')
 
-    #plot histograms
-    histograms(data, folder)
+    print('Getting FB data')
+    path = os.path.join(BASE_PATH, 'fb', 'fb_aps_no_geo.csv')
+    data_fb = pd.read_csv(path)#[:1]
+    data = pd.merge(data, data_fb, left_on='msoa', right_on='area_code')
+
+    # #plot histograms
+    # histograms(data, folder)
 
     #plot pairwise
     # pairwise(data, folder)

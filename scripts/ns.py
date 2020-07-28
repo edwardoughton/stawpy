@@ -156,15 +156,14 @@ def internet_access_by_households():
         },
     }
 
-def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup):
+def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup, ap_coverage_area):
     """
     Estimate adoption rates for businesses.
 
     """
-    ap_coverage_area = 30
     lookup[area_id]['population']
 
-    floor_area = lookup[area_id]['prems_non_residential_floor_area']
+    floor_area = lookup[area_id]['prems_non_residential_footprint_area']
 
     emp_micro = (bus_counts['micro'] * 5)
     emp_small = (bus_counts['small'] * 25)
@@ -182,24 +181,24 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup):
     total_businesses = bus_counts['total']
 
     #disaggregate total floor area based on employees
-    fa_micro = (emp_micro / emp_total) * floor_area
-    fa_small = (emp_small / emp_total) * floor_area
-    fa_medium = (emp_medium / emp_total) * floor_area
-    fa_large = (emp_large / emp_total) * floor_area
-    fa_very_large = (emp_very_large / emp_total) * floor_area
+    bfa_micro = (emp_micro / emp_total) * floor_area
+    bfa_small = (emp_small / emp_total) * floor_area
+    bfa_medium = (emp_medium / emp_total) * floor_area
+    bfa_large = (emp_large / emp_total) * floor_area
+    bfa_very_large = (emp_very_large / emp_total) * floor_area
 
     #fa_ stands for Adopted Floor Area (m2)
-    afa_micro = fa_micro * bussiness_adoption['micro']
-    afa_small = fa_small * bussiness_adoption['small']
-    afa_medium = fa_medium * bussiness_adoption['medium']
-    afa_large = fa_large * bussiness_adoption['large']
-    afa_very_large = fa_very_large * bussiness_adoption['very_large']
+    bafa_micro = bfa_micro * bussiness_adoption['micro']
+    bafa_small = bfa_small * bussiness_adoption['small']
+    bafa_medium = bfa_medium * bussiness_adoption['medium']
+    bafa_large = bfa_large * bussiness_adoption['large']
+    bafa_very_large = bfa_very_large * bussiness_adoption['very_large']
 
-    aps_micro = round(afa_micro / ap_coverage_area)
-    aps_small = round(afa_small / ap_coverage_area)
-    aps_medium = round(afa_medium / ap_coverage_area)
-    aps_large = round(afa_large / ap_coverage_area)
-    aps_very_large = round(afa_very_large / ap_coverage_area)
+    baps_micro = round(bafa_micro / ap_coverage_area)
+    baps_small = round(bafa_small / ap_coverage_area)
+    baps_medium = round(bafa_medium / ap_coverage_area)
+    baps_large = round(bafa_large / ap_coverage_area)
+    baps_very_large = round(bafa_very_large / ap_coverage_area)
 
     return {
         'area_type': bus_counts['area_type'],
@@ -210,18 +209,18 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup):
         'ba_large': ba_large,
         'ba_very_large': ba_very_large,
         'ba_total': ba_micro + ba_small + ba_medium + ba_large + ba_very_large,
-        'bafa_micro': fa_micro,
-        'bafa_small': fa_small,
-        'bafa_medium': fa_medium,
-        'bafa_large': fa_large,
-        'bafa_very_large': fa_very_large,
-        'bafa_total': fa_micro + fa_small + fa_medium + fa_large + fa_very_large,
-        'baps_micro': aps_micro,
-        'baps_small': aps_small,
-        'baps_medium': aps_medium,
-        'baps_large': aps_large,
-        'baps_very_large': aps_very_large,
-        'baps_total': aps_micro + aps_small + aps_medium + aps_large + aps_very_large,
+        'bafa_micro': bfa_micro,
+        'bafa_small': bfa_small,
+        'bafa_medium': bfa_medium,
+        'bafa_large': bfa_large,
+        'bafa_very_large': bfa_very_large,
+        'bafa_total': bfa_micro + bfa_small + bfa_medium + bfa_large + bfa_very_large,
+        'baps_micro': baps_micro,
+        'baps_small': baps_small,
+        'baps_medium': baps_medium,
+        'baps_large': baps_large,
+        'baps_very_large': baps_very_large,
+        'baps_total': baps_micro + baps_small + baps_medium + baps_large + baps_very_large,
     }
 
 
@@ -429,6 +428,8 @@ if __name__ == '__main__':
     print('----Working on estimating business adoption')
     print('----')
 
+    ap_coverage_area = 50
+
     print('Loading local business counts')
     path = os.path.join(BASE_PATH, 'ons_local_business_counts', 'business_counts.csv')
     business_data = load_business_data(path)
@@ -463,7 +464,8 @@ if __name__ == '__main__':
         else:
             continue
 
-        estimated_bus_data = estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup)
+        estimated_bus_data = estimate_business_stats(area_id, bus_counts,
+            bussiness_adoption, lookup, ap_coverage_area)
 
         directory = os.path.join(BASE_PATH, 'intermediate', 'hh_by_lad_msoa', lad_id)
         path_hh = os.path.join(directory, area_id + '.csv')
@@ -473,7 +475,18 @@ if __name__ == '__main__':
         else:
             continue
 
-        estimated_hh_data = estimate_hh_stats(area_id, hh_data, hh_adoption, lookup, lad_id)
+        folder = os.path.join(BASE_PATH, 'intermediate', 'hh_data_aggregated', lad_id)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        path = os.path.join(folder, area_id + '.csv')
+
+        if not os.path.exists(path):
+            estimated_hh_data = estimate_hh_stats(area_id, hh_data, hh_adoption, lookup, lad_id)
+            hh_data_to_write = pd.DataFrame(estimated_hh_data)
+            hh_data_to_write.to_csv(path, index=False)
+        else:
+            estimated_hh_data = pd.read_csv(path)
+            estimated_hh_data = estimated_hh_data.to_dict('records')#[:1000]
 
         estimated_data = aggregate_data(estimated_bus_data, estimated_hh_data, area_id, lookup, lad_id)
 
