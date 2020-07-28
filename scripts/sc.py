@@ -261,15 +261,16 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
     return buffered_points_aggregated
 
 
-def collate_data(oa_data, buffer_sizes):
+def collate_data(oa_data, area_data, buffer_sizes):
     """
     Collect data from each area folder and place in a single csv.
 
     """
     #collect all data and write out a single file.
-    all_data = []
 
     for buffer_size in buffer_sizes:
+
+        all_data = []
 
         for idx, row in oa_data.iterrows():
 
@@ -349,7 +350,7 @@ if __name__ == '__main__':
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
-    buffer_sizes = [100]
+    buffer_sizes = [400]#, 300]
     problem_oa_data = []
 
     for buffer_size in buffer_sizes:
@@ -358,8 +359,18 @@ if __name__ == '__main__':
 
             oa = row['msoa']
 
-            # if not oa == 'E02003731':
+            # if not oa == 'E02006240':
             #     continue
+
+            print('Creating a results folder (if one does not exist already)')
+            folder = os.path.join(BASE_PATH, '..', 'results', str(oa))
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            output_path = os.path.join(folder, 'oa_aps_buffered_{}.csv'.format(buffer_size))
+
+            if os.path.exists(output_path):
+                continue
 
             print('-- Working on {} with {}m buffer'.format(oa, buffer_size))
 
@@ -367,11 +378,6 @@ if __name__ == '__main__':
 
             # if not oa_geotype['lad'] == 'E07000008':
             #     continue
-
-            print('Creating a results folder (if one does not exist already)')
-            folder = os.path.join(BASE_PATH, '..', 'results', str(oa))
-            if not os.path.exists(folder):
-                os.makedirs(folder)
 
             print('Getting output area boundary')
             path = os.path.join(folder, 'boundary.shp')
@@ -443,8 +449,8 @@ if __name__ == '__main__':
                 oa_aps['msoa'] = oa
                 if len(oa_aps) > 0:
                     if not type(oa_aps) is str:
-                        oa_aps.to_file( os.path.join(folder, 'oa_aps_buffered_{}.shp'.format(buffer_size)), crs='epsg:27700')
-                        oa_aps.to_csv(os.path.join(folder, 'oa_aps_buffered_{}.csv'.format(buffer_size)), index=False)
+                        oa_aps.to_file(os.path.join(folder, 'oa_aps_buffered_{}.shp'.format(buffer_size)), crs='epsg:27700')
+                        oa_aps.to_csv(output_path, index=False)
                     else:
                         print('Unable to process {}'.format(oa))
                         problem_oa_data.append(str(oa))
@@ -452,6 +458,6 @@ if __name__ == '__main__':
                 pass
 
     print('Collect a data and place in a single csv')
-    collate_data(oa_data, buffer_sizes)
+    collate_data(oa_data, area_data, buffer_sizes)
 
     print('Finished processing self-collected (SC) data')
