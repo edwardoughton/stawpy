@@ -10,13 +10,11 @@ import os
 import sys
 import configparser
 import csv
-import numpy as np
-from scipy import stats
+# import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from shapely.geometry import mapping, Polygon
 from shapely import wkt
 
 CONFIG = configparser.ConfigParser()
@@ -65,7 +63,7 @@ def process_lookup(lookup):
 
     return output
 
-def add_lut_data_to_ns(data, lookup):
+def add_lut_data_to_ns(data, lookup, ap_coverage):
     """
 
     """
@@ -75,7 +73,10 @@ def add_lut_data_to_ns(data, lookup):
         area = datum['msoa']
         area = lookup[area]
 
-        number_of_aps = datum['hh_wifi_access'] + datum['baps_total']
+        number_of_aps = datum['hh_wifi_access'] + datum['baps_total_{}'.format(ap_coverage)]
+        # number_of_aps_low = datum['hh_wifi_access'] + datum['baps_total_low']
+        # number_of_aps_baseline = datum['hh_wifi_access'] + datum['baps_total_baseline']
+        # number_of_aps_high = datum['hh_wifi_access'] + datum['baps_total_high']
 
         output.append({
             'msoa': datum['msoa'],
@@ -84,6 +85,12 @@ def add_lut_data_to_ns(data, lookup):
             'total_prems_density_km2': area['total_prems_density_km2'],
             'number_of_aps': number_of_aps ,
             'number_of_aps_density_km2': number_of_aps / area['area_km2'],
+            # 'number_of_aps_low': number_of_aps_low ,
+            # 'number_of_aps_density_km2_low': number_of_aps_low / area['area_km2'],
+            # 'number_of_aps_baseline': number_of_aps_baseline ,
+            # 'number_of_aps_density_km2_baseline': number_of_aps_baseline / area['area_km2'],
+            # 'number_of_aps_high': number_of_aps_high ,
+            # 'number_of_aps_density_km2_high': number_of_aps_high / area['area_km2'],
         })
 
     output = pd.DataFrame(output)
@@ -160,58 +167,6 @@ def add_lut_data_to_sc(data, lookup):
         })
 
     output = pd.DataFrame(output)
-
-    return output
-
-
-def add_lut_data_to_fb(data, lookup):
-    """
-
-    """
-    output = []
-
-    for item in data:
-        msoa = item['area_code']
-
-        if not msoa in lookup.keys():
-            continue
-
-        lut = lookup[msoa]
-
-        output.append({
-            'msoa': msoa,
-            'lad': lut['lad'],
-            'region': lut['region'],
-            'population': lut['population'],
-            'area_km2': lut['area_km2'],
-            'pop_density_km2': lut['pop_density_km2'],
-            'urban_rural': lut['geotype'],
-            'households': lut['households'],
-            'prems_residential': lut['prems_residential'],
-            'prems_residential_floor_area': lut['prems_residential_floor_area'],
-            'prems_residential_footprint_area': lut['prems_residential_footprint_area'],
-            'prems_non_residential': lut['prems_non_residential'],
-            'prems_non_residential_floor_area': lut['prems_non_residential_floor_area'],
-            'prems_non_residential_footprint_area': lut['prems_non_residential_footprint_area'],
-            'total_prems': (
-                lut['prems_residential'] +
-                lut['prems_non_residential']
-            ),
-            'total_floor_area': (
-                lut['prems_residential_floor_area'] +
-                lut['prems_non_residential_floor_area']
-            ),
-            'total_footprint_area': (
-                lut['prems_residential_footprint_area'] +
-                lut['prems_non_residential_footprint_area']
-            ),
-            'total_prems_density_km2': (
-                lut['prems_residential'] +
-                lut['prems_non_residential']
-            ) / lut['area_km2'],
-            'number_of_aps': item['number_of_APs'],
-            'number_of_aps_density_km2': item['number_of_APs'] / lut['area_km2'],
-        })
 
     return output
 
@@ -355,36 +310,58 @@ def histograms_by_urban_rural(data, folder, buffer_size, urban_rural, bins):
 
     data = data[data['urban_rural'] == urban_rural]
 
+    wardriving_data = data[data['source'] == 'Wardriving']
+    unique_wardriving_areas = wardriving_data['msoa'].unique()
+
+    data = data[data['msoa'].isin(unique_wardriving_areas)]
+
+    data = data.drop_duplicates()
+
+    # n_predicted = len(data[data['source'] == 'Predicted'])
+    # n_wardriving = len(data[data['source'] == 'Wardriving'])
+
+    # data['source'] = data['source'].replace(['Predicted'], 'Predicted (n={})'.format(n_predicted))
+    # data['source'] = data['source'].replace(['Wardriving'], 'Wardriving (n={})'.format(n_wardriving))
+
     # bins = list(range(0, int(max_value), int(max_value/10)))
     # bins = [round(x/1e3,1) for x in bins]
     bins = [round(x/1e3,1) for x in bins]
-    data['total_prems_density_km2_low_decile'] =  pd.cut(data['total_prems_density_km2'] / 1e3, bins)
+    data['total_prems_density_km2_decile'] =  pd.cut(data['total_prems_density_km2'] / 1e3, bins)
+
+    # data.to_csv(os.path.join(BASE_PATH, '..', 'vis', 'all_data_to_plot_{}.csv'.format(urban_rural)), index=False)
 
     data = data[[
         'urban_rural',
-        'total_prems_density_km2_low_decile',
+        'total_prems_density_km2_decile',
         'number_of_aps_density_km2',
         'source',
         'buffer_size',
     ]]
 
+    source_label = 'Data Source (n={})'.format(len(unique_wardriving_areas))
+
     data.rename(
         columns = {
             'urban_rural': 'Geotype',
-            'total_prems_density_km2_low_decile': 'Premises Density by Decile (1000s per km^2)',
+            'total_prems_density_km2_decile': 'Premises Density by Decile (1000s per km^2)',
             'number_of_aps_density_km2': 'AP Density (km^2)',
-            'source': 'Source',
+            'source': source_label,
             'buffer_size': 'Buffer Size (m)'
             }, inplace = True)
 
     catplot = sns.catplot(x="Premises Density by Decile (1000s per km^2)",
         y='AP Density (km^2)',
-        hue="Source", col='Buffer Size (m)', #row_order=['Urban', 'Suburban', 'Rural'],
-        row="Geotype", capsize=.2, palette="YlGnBu_d", height=6, aspect=.75,
+        hue=source_label, col='Buffer Size (m)', #row_order=['Urban', 'Suburban', 'Rural'],
+        row="Geotype", capsize=.2,
+        # palette="YlGnBu_d",
+        height=6, aspect=.75,
         sharey=True, sharex=False,
         kind="point",
         data=data,
-        legend_out=True)
+        legend_out=False,
+        palette=sns.color_palette(['red', 'black'])
+        )
+    # plt.legend(loc='upper left')
     catplot.set_xticklabels(rotation=45)
     plt.tight_layout()
 
@@ -400,53 +377,69 @@ if __name__ == '__main__':
     lookup = pd.read_csv(path)#[:20]
     lookup = process_lookup(lookup)
 
-    buffer_sizes = [100, 200, 300, 400]
+    buffer_sizes = [
+        100,
+        200,
+        300,
+        400
+        ]
+    ap_coverage_levels = [
+        'low',
+        'baseline',
+        'high'
+    ]
 
     all_data = pd.DataFrame()
 
     for buffer_size in buffer_sizes:
 
-        print('Loading estimates derived from national statistics')
-        path = os.path.join(RESULTS_PATH, 'estimated_adoption_ns.csv')
-        data_ns = pd.read_csv(path)#[:5]
-        data_ns = data_ns.to_dict('records')
-        data_ns = add_lut_data_to_ns(data_ns, lookup)
-        data_ns = pd.DataFrame(data_ns)
-        data_ns = data_ns[['msoa', 'urban_rural', 'total_prems', 'total_prems_density_km2', 'number_of_aps', 'number_of_aps_density_km2']]
-        data_ns['source'] = 'ns'
-        data_ns['buffer_size'] = buffer_size
+        print('Working on buffer size: {}'.format(buffer_size))
 
-        print('Loading Facebook AP')
-        path = os.path.join(BASE_PATH, 'fb', 'fb_aps_no_geo.csv')
-        data_fb = pd.read_csv(path)#[:1]
-        data_fb = data_fb.to_dict('records')
-        data_fb = add_lut_data_to_fb(data_fb, lookup)
-        data_fb = pd.DataFrame(data_fb)
-        data_fb = data_fb[['msoa', 'urban_rural', 'total_prems', 'total_prems_density_km2', 'number_of_aps', 'number_of_aps_density_km2']]
-        data_fb['source'] = 'fb'
-        data_fb['buffer_size'] = buffer_size
+        for ap_coverage in ap_coverage_levels:
 
-        print('Loading self collected estimates')
-        filename = 'all_buffered_points_{}m.csv'.format(buffer_size)
-        path = os.path.join(RESULTS_PATH, filename)
-        data_sc = pd.read_csv(path)#[:3]
-        data_sc = process_sc_data(data_sc)
-        data_sc = add_lut_data_to_sc(data_sc, lookup) #'msoa', 'urban_rural',  'total_ap_density_km2'
-        data_sc = data_sc[['msoa', 'urban_rural', 'total_prems', 'total_prems_density_km2', 'number_of_aps', 'number_of_aps_density_km2']]
-        data_sc['source'] = 'sc'
-        data_sc['buffer_size'] = buffer_size
-        data_sc = data_sc.append(data_sc)
+            print('Working on AP coverage: {}'.format(ap_coverage))
 
-        all_data = all_data.append(data_ns)
-        all_data = all_data.append(data_sc)
-        all_data = all_data.append(data_fb)
+            path = os.path.join(RESULTS_PATH, 'estimated_adoption_ns.csv')
+            data_ns = pd.read_csv(path)#[:5]
+            data_ns = data_ns.to_dict('records')
+            data_ns = add_lut_data_to_ns(data_ns, lookup, ap_coverage)
+            data_ns = pd.DataFrame(data_ns)
+            data_ns = data_ns[['msoa', 'urban_rural', 'total_prems', 'total_prems_density_km2',
+            'number_of_aps', 'number_of_aps_density_km2'
+            # 'number_of_aps_low',
+            # 'number_of_aps_density_km2_low',
+            # 'number_of_aps_baseline',
+            # 'number_of_aps_density_km2_baseline',
+            # 'number_of_aps_high',
+            # 'number_of_aps_density_km2_high',
+            ]]
+            data_ns['ap_coverage'] = ap_coverage
+            data_ns['source'] = 'Predictive Model'
+            data_ns['buffer_size'] = buffer_size
+
+            # print('Loading self collected estimates')
+            filename = 'all_buffered_points_{}m.csv'.format(buffer_size)
+            path = os.path.join(RESULTS_PATH, filename)
+            data_sc = pd.read_csv(path)#[:3]
+            data_sc = process_sc_data(data_sc)
+            data_sc = add_lut_data_to_sc(data_sc, lookup) #'msoa', 'urban_rural',  'total_ap_density_km2'
+            data_sc = data_sc[['msoa', 'urban_rural', 'total_prems',
+                'total_prems_density_km2', 'number_of_aps', 'number_of_aps_density_km2']]
+            data_sc['source'] = 'Wardriving'
+            data_sc['buffer_size'] = buffer_size
+            data_sc['ap_coverage'] = ap_coverage
+            data_sc = data_sc.append(data_sc)
+
+            all_data = all_data.append(data_ns)
+            all_data = all_data.append(data_sc)
+
     all_data.to_csv(os.path.join(BASE_PATH, '..', 'vis', 'all_data_to_plot.csv'), index=False)
 
     print('Plot histograms')
     folder = os.path.join(BASE_PATH, '..', 'vis', 'figures')
     # histograms(all_data, folder, buffer_size)
 
-    bins = list(range(0, 5000, 750))
+    bins = list(range(0, 8500, 750))
     histograms_by_urban_rural(all_data, folder, buffer_size, 'Urban', bins)
 
     bins = list(range(0, 2500, 500))
@@ -454,7 +447,6 @@ if __name__ == '__main__':
 
     bins = list(range(0, 1000, 250))
     histograms_by_urban_rural(all_data, folder, buffer_size, 'Rural', bins)
-
 
     print('Completed')
     print('---------')
