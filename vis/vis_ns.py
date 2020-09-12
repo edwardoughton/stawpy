@@ -190,7 +190,6 @@ def histograms(data, folder):
     plt.clf()
 
 
-
 if __name__ == '__main__':
 
     folder = os.path.join(BASE_PATH, '..', 'vis', 'figures')

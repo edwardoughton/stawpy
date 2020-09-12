@@ -27,7 +27,7 @@ Activate it (run this each time you switch projects):
 
 Install the required packages (mainly visualization-related):
 
-    conda install geopandas matplotlib imagio contextily seaborn tqdm pykml
+    conda install geopandas matplotlib seaborn pykml
 
 ### Preprocessing
 
@@ -48,28 +48,29 @@ There is a set order in which to run the code from the `scripts` folder as follo
 - oa_list.py
 - prems.py
 - sc.py
-- vis_sc.py
 
-Then the visualization scripts can be run.
+Then the visualization scripts can be run, such as from the `vis` folder:
+
+- vis_sc.py
 
 The `oa_list.py` processes all collected WiGLE .kml data files and exports the
 `all_collected_points.shp` file to the `data/intermediate` folder. It finally writes
 out the `oa_list.csv` to the same folder.
 
 Next, the `prems.py` script processes the ITRC premises-level data into the
-`data/intermediate` folder for each Local Authority District, for each Output Area (OA).
+`data/intermediate` folder for each Output Area (OA) in each Local Authority District.
 
-All data are then processed via the `buffer_aps.py` script which adds a set buffer to each
-data point and intersects this shape with other APs and buildings. Data are written out to
-the `results` folder.
+All self-collected data are then processed via the `sc.py` script which adds a set buffer to
+each data point and intersects this shape with other APs and buildings. Data are written out
+to the `results` folder.
 
-Finally, the `vis_buffers.py` script will take the data for all OAs, and then produce a
-set of plotted visualizations.
+Finally, the `vis_sc.py` script will take the self-collected data for all OAs, and then
+produce a set of plotted visualizations.
 
 ### Running the scripts for estimating national WiFi availability
 
-To make a national estimate of fixed broadband adoption and WiFi availability, for all OAs,
-run:
+To make a national estimate of fixed broadband adoption and WiFi availability, for all OAs
+using national statistics (ns), run:
 
-- ns.py
-- vis_ns.py
+- scripts/ns.py
+- vis/vis_ns.py

@@ -9,6 +9,7 @@ April 2020
 import os
 import csv
 import configparser
+import math
 import pandas as pd
 import geopandas as gpd
 from pykml import parser
@@ -186,7 +187,7 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
         merged = gpd.overlay(buildings, buffered_points, how='intersection')
     except:
         return 'Unable to complete intersection'
-    print(merged.columns)
+
     merged = merged[[
         'mfc',
         'mbc',
@@ -202,31 +203,29 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
         'area_km2',
         'waps_km2'
     ]]
-    merged = merged[merged["fa"] > 100]
+
     merged = merged.to_dict('records')
 
     buffered_points_aggregated = []
 
     for idx, buffered_point in buffered_points.iterrows():
+
         res_count = 0
         floor_area = 0
-        adjusted_floor_area = 0
         building_count = 0
         nonres_count = 0
 
         for merged_points in merged:
             if buffered_point['FID'] == merged_points['FID']:
-                res_count += merged_points['rc']
-                if merged_points['nof'] <= 2: #if number of floors < 2
+                if not merged_points['rc'] is None:
+                    if not math.isnan(merged_points['rc']):
+                        res_count += merged_points['rc']
+                if not merged_points['fa'] is None:
                     floor_area += merged_points['fa']
-                    adjusted_floor_area += merged_points['fa']
-                else:
-                    floor_area += merged_points['fa']
-                    #assume APs at or above 3 floors can't be accessed
-                    adjusted_floor_area += (merged_points['fpa'] * 2)
-
                 building_count += 1
-                nonres_count += merged_points['nrc']
+                if not merged_points['nrc'] is None:
+                    if not math.isnan(merged_points['nrc']):
+                        nonres_count += merged_points['nrc']
 
         area_km2 = buffered_point['geometry'].area / 1e6
 
@@ -235,7 +234,6 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
             'properties': {
                 'res_count': res_count,
                 'floor_area': floor_area,
-                'adjusted_floor_area': adjusted_floor_area,
                 'building_count': building_count,
                 'nonres_count': nonres_count,
                 'waps_collected': buffered_point['waps_km2'] * area_km2,
@@ -255,7 +253,7 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
     buffered_points_aggregated.to_file(os.path.join(folder, 'merged.shp'), crs='epsg:27700')
 
     print('Total buffers {}'.format(len(buffered_points_aggregated)))
-    buffered_points_aggregated = buffered_points_aggregated.loc[buffered_points_aggregated['floor_area'] > 0]
+    # buffered_points_aggregated = buffered_points_aggregated.loc[buffered_points_aggregated['floor_area'] > 0]
     print('Subset of buffers without rmdps data {}'.format(len(buffered_points_aggregated)))
 
     return buffered_points_aggregated
@@ -343,14 +341,14 @@ if __name__ == '__main__':
     if not os.path.exists(results):
         os.makedirs(results)
 
-    print('Processing or load the collected points')
+    print('Processing or loading the collected points')
     path = os.path.join(BASE_PATH, 'intermediate', 'all_collected_points.shp')
     if not os.path.exists(path):
         all_data = load_collected_ap_data(folder_kml, files)
     else:
         all_data = gpd.read_file(path, crs='epsg:27700')
 
-    buffer_sizes = [400]#, 300]
+    buffer_sizes = [200, 300, 400]
     problem_oa_data = []
 
     for buffer_size in buffer_sizes:
@@ -359,7 +357,7 @@ if __name__ == '__main__':
 
             oa = row['msoa']
 
-            # if not oa == 'E02006240':
+            # if not oa == 'E02005481':
             #     continue
 
             print('Creating a results folder (if one does not exist already)')
@@ -369,8 +367,8 @@ if __name__ == '__main__':
 
             output_path = os.path.join(folder, 'oa_aps_buffered_{}.csv'.format(buffer_size))
 
-            if os.path.exists(output_path):
-                continue
+            # if os.path.exists(output_path):
+            #     continue
 
             print('-- Working on {} with {}m buffer'.format(oa, buffer_size))
 
@@ -401,21 +399,22 @@ if __name__ == '__main__':
 
             print('Subsetting the collected points for the output area')
             collected_data = os.path.join(folder, 'collected_points.shp')
-            if not os.path.exists(collected_data):
-                points_subset = all_data[all_data.intersects(boundary.unary_union)]
-                points_subset = points_subset.drop_duplicates('network_id')
-                points_subset.to_file(collected_data, crs='epsg:27700')
-            else:
-                points_subset = gpd.read_file(collected_data, crs='epsg:27700')
+            # if not os.path.exists(collected_data):
+            points_subset = all_data[all_data.intersects(boundary.unary_union)]
+            points_subset['netid_short'] = points_subset['network_id'].str[:20]
+            points_subset = points_subset.drop_duplicates('netid_short')
+            points_subset.to_file(collected_data, crs='epsg:27700')
+            # else:
+            #     points_subset = gpd.read_file(collected_data, crs='epsg:27700')
 
             print('Getting buffered points')
             collected_data = os.path.join(folder, 'buffered_points_{}.shp'.format(buffer_size))
-            if not os.path.exists(collected_data):
-                print('Processing buffered points')
-                buffered_points = process_points(points_subset, buffer_size)
-                buffered_points.to_file(collected_data, crs='epsg:27700')
-            else:
-                buffered_points = gpd.read_file(collected_data, crs='epsg:27700')
+            # if not os.path.exists(collected_data):
+            print('Processing buffered points')
+            buffered_points = process_points(points_subset, buffer_size)
+            buffered_points.to_file(collected_data, crs='epsg:27700')
+            # else:
+            #     buffered_points = gpd.read_file(collected_data, crs='epsg:27700')
 
             print('Subsetting the premises data for the output area')
             path = os.path.join(folder, 'buildings.shp')

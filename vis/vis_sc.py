@@ -154,37 +154,37 @@ def histograms(data, folder, side_length):
     plot.savefig(path)
     plt.clf()
 
-    plt.figure()
-    plot = sns.catplot(x="building_count", y="waps_collected", data=data, kind="bar")
-    plot.set_xticklabels(rotation=90)
-    path = os.path.join(folder, "histograms_building_count_buffered_{}.png".format(side_length))
-    plot.savefig(path)
-    plt.clf()
+    # plt.figure()
+    # plot = sns.catplot(x="building_count", y="waps_collected", data=data, kind="bar")
+    # plot.set_xticklabels(rotation=90)
+    # path = os.path.join(folder, "histograms_building_count_buffered_{}.png".format(side_length))
+    # plot.savefig(path)
+    # plt.clf()
 
-    max_value = max(data['floor_area'])
-    bins = list(range(0, int(max_value), int(max_value/10)))
-    data['floor_area'] =  pd.cut(data['floor_area'], bins)
+    # max_value = max(data['floor_area'])
+    # bins = list(range(0, int(max_value), int(max_value/10)))
+    # data['floor_area'] =  pd.cut(data['floor_area'], bins)
 
-    # data.columns = [
-    #     'Wigle APs',
-    #     # 'Wigle APs (km^2)',
-    #     'Building Count',
-    #     # 'Building Density (km^2)',
-    #     # 'Resident Count',
-    #     # 'Resident Density (HHs per km^2)',
-    #     # 'Non Residential Count',
-    #     # 'Non Residential Density (km^2)',
-    #     # 'Total Floor Area (km^2)',
-    #     # 'Total Floor Area Adjusted (km^2)',
-    #     # 'Area (km^2)'
-    # ]
+    # # data.columns = [
+    # #     'Wigle APs',
+    # #     # 'Wigle APs (km^2)',
+    # #     'Building Count',
+    # #     # 'Building Density (km^2)',
+    # #     # 'Resident Count',
+    # #     # 'Resident Density (HHs per km^2)',
+    # #     # 'Non Residential Count',
+    # #     # 'Non Residential Density (km^2)',
+    # #     # 'Total Floor Area (km^2)',
+    # #     # 'Total Floor Area Adjusted (km^2)',
+    # #     # 'Area (km^2)'
+    # # ]
 
-    plt.figure()
-    plot = sns.catplot(x="floor_area", y="waps_collected", col="geotype", data=data, kind="bar")
-    plot.set_xticklabels(rotation=45)
-    path = os.path.join(folder, "histograms_floor_area_buffered_{}.png".format(side_length))
-    plot.savefig(path)
-    plt.clf()
+    # plt.figure()
+    # plot = sns.catplot(x="floor_area", y="waps_collected", col="geotype", data=data, kind="bar")
+    # plot.set_xticklabels(rotation=45)
+    # path = os.path.join(folder, "histograms_floor_area_buffered_{}.png".format(side_length))
+    # plot.savefig(path)
+    # plt.clf()
 
 
 if __name__ == '__main__':
@@ -210,7 +210,7 @@ if __name__ == '__main__':
 
     all_data = []
 
-    side_lengths = [100]#, 300]
+    side_lengths = [100, 200, 300, 400]
 
     for side_length in side_lengths:
 
@@ -245,15 +245,17 @@ if __name__ == '__main__':
             else:
                 pass
 
+        print('All processed data loaded for {}m buffer'.format(side_length))
+
         aps = pd.DataFrame(all_data)
 
         aps.to_csv(os.path.join(RESULTS_PATH, 'all_buffered_points_{}m.csv'.format(side_length)))
 
         sample_size = len(aps)
 
-        plot_results(aps, "waps_collected", "building_count",
-            'waps_vs_building_count_{}'.format(side_length), 'Wigle APs',
-            'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
+        # plot_results(aps, "waps_collected", "building_count",
+        #     'waps_vs_building_count_{}'.format(side_length), 'Wigle APs',
+        #     'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
         # plot_results(aps, "waps_km2", "building_count",
         #     'aps_vs_building_count_{}'.format(side_length), 'Wigle APs per km^2',
         #     'Building count', 'WiFi APs vs Building Count (n={})'.format(sample_size))
@@ -268,8 +270,8 @@ if __name__ == '__main__':
         # plot_results(aps, "waps_km2", "floor_area_km2",
         #     'aps_km2_vs_floor_area_km2_{}'.format(side_length), 'Wigle APs per km^2', 'Floor area (km^2)')
 
-        #Plot correlations
-        pairwise(aps, folder, 'pairwise_buffered_{}'.format(side_length))
+        # #Plot correlations
+        # pairwise(aps, folder, 'pairwise_buffered_{}'.format(side_length))
 
         #plot histograms
         histograms(aps, folder, side_length)
