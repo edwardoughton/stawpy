@@ -26,7 +26,7 @@ def load_business_data(path):
     """
     output = {}
 
-    data = pd.read_csv(path)#[:1]
+    data = pd.read_csv(path)#[:1000]
 
     data = data.to_dict('records')
 
@@ -156,7 +156,8 @@ def internet_access_by_households():
         },
     }
 
-def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup, ap_coverage_area):
+def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup,
+    ap_coverage_area_low, ap_coverage_area_baseline, ap_coverage_area_high):
     """
     Estimate adoption rates for businesses.
 
@@ -181,6 +182,7 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup, ap_
     total_businesses = bus_counts['total']
 
     #disaggregate total floor area based on employees
+    #bfa_ stands for Business Floor Area
     bfa_micro = (emp_micro / emp_total) * floor_area
     bfa_small = (emp_small / emp_total) * floor_area
     bfa_medium = (emp_medium / emp_total) * floor_area
@@ -188,17 +190,33 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup, ap_
     bfa_very_large = (emp_very_large / emp_total) * floor_area
 
     #fa_ stands for Adopted Floor Area (m2)
+    #bafa_ stands for Business Adoption Floor Area
     bafa_micro = bfa_micro * bussiness_adoption['micro']
     bafa_small = bfa_small * bussiness_adoption['small']
     bafa_medium = bfa_medium * bussiness_adoption['medium']
     bafa_large = bfa_large * bussiness_adoption['large']
     bafa_very_large = bfa_very_large * bussiness_adoption['very_large']
 
-    baps_micro = round(bafa_micro / ap_coverage_area)
-    baps_small = round(bafa_small / ap_coverage_area)
-    baps_medium = round(bafa_medium / ap_coverage_area)
-    baps_large = round(bafa_large / ap_coverage_area)
-    baps_very_large = round(bafa_very_large / ap_coverage_area)
+    #baps_ stands for Business Access Points
+    baps_micro_low = round(bafa_micro / ap_coverage_area_low)
+    baps_small_low = round(bafa_small / ap_coverage_area_low)
+    baps_medium_low = round(bafa_medium / ap_coverage_area_low)
+    baps_large_low = round(bafa_large / ap_coverage_area_low)
+    baps_very_large_low = round(bafa_very_large / ap_coverage_area_low)
+
+    #baps_ stands for Business Access Points
+    baps_micro_baseline = round(bafa_micro / ap_coverage_area_baseline)
+    baps_small_baseline = round(bafa_small / ap_coverage_area_baseline)
+    baps_medium_baseline = round(bafa_medium / ap_coverage_area_baseline)
+    baps_large_baseline = round(bafa_large / ap_coverage_area_baseline)
+    baps_very_large_baseline = round(bafa_very_large / ap_coverage_area_baseline)
+
+    #baps_ stands for Business Access Points
+    baps_micro_high = round(bafa_micro / ap_coverage_area_high)
+    baps_small_high = round(bafa_small / ap_coverage_area_high)
+    baps_medium_high = round(bafa_medium / ap_coverage_area_high)
+    baps_large_high = round(bafa_large / ap_coverage_area_high)
+    baps_very_large_high = round(bafa_very_large / ap_coverage_area_high)
 
     return {
         'area_type': bus_counts['area_type'],
@@ -215,12 +233,20 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup, ap_
         'bafa_large': bfa_large,
         'bafa_very_large': bfa_very_large,
         'bafa_total': bfa_micro + bfa_small + bfa_medium + bfa_large + bfa_very_large,
-        'baps_micro': baps_micro,
-        'baps_small': baps_small,
-        'baps_medium': baps_medium,
-        'baps_large': baps_large,
-        'baps_very_large': baps_very_large,
-        'baps_total': baps_micro + baps_small + baps_medium + baps_large + baps_very_large,
+        # 'baps_micro': baps_micro_low,
+        # 'baps_small': baps_small_low,
+        # 'baps_medium': baps_medium_low,
+        # 'baps_large': baps_large_low,
+        # 'baps_very_large': baps_very_large_low,
+        'baps_total_low': (
+            baps_micro_low + baps_small_low + baps_medium_low +
+            baps_large_low + baps_very_large_low),
+        'baps_total_baseline': (
+            baps_micro_baseline + baps_small_baseline + baps_medium_baseline +
+            baps_large_baseline + baps_very_large_baseline),
+        'baps_total_high': (
+            baps_micro_high + baps_small_high + baps_medium_high +
+            baps_large_high + baps_very_large_high),
     }
 
 
@@ -413,13 +439,17 @@ def aggregate_data(business_data, estimated_data, area_id, lookup, lad_id):
         'bafa_very_large': business_data['bafa_very_large'],
         'bafa_total': business_data['bafa_total'],
         #business access points - baps_
-        'baps_micro': business_data['baps_micro'],
-        'baps_small': business_data['baps_small'],
-        'baps_medium': business_data['baps_medium'],
-        'baps_large': business_data['baps_large'],
-        'baps_very_large': business_data['baps_very_large'],
-        'baps_total': business_data['baps_total'],
-        'baps_density_km2': business_data['baps_total'] / area_km2,
+        # 'baps_micro': business_data['baps_micro'],
+        # 'baps_small': business_data['baps_small'],
+        # 'baps_medium': business_data['baps_medium'],
+        # 'baps_large': business_data['baps_large'],
+        # 'baps_very_large': business_data['baps_very_large'],
+        'baps_total_low': business_data['baps_total_low'],
+        'baps_density_km2_low': business_data['baps_total_low'] / area_km2,
+        'baps_total_baseline': business_data['baps_total_baseline'],
+        'baps_density_km2_baseline': business_data['baps_total_baseline'] / area_km2,
+        'baps_total_high': business_data['baps_total_high'],
+        'baps_density_km2_high': business_data['baps_total_high'] / area_km2,
     }
 
 
@@ -428,7 +458,9 @@ if __name__ == '__main__':
     print('----Working on estimating business adoption')
     print('----')
 
-    ap_coverage_area = 50
+    ap_coverage_area_low = 25
+    ap_coverage_area_baseline = 50
+    ap_coverage_area_high = 100
 
     print('Loading local business counts')
     path = os.path.join(BASE_PATH, 'ons_local_business_counts', 'business_counts.csv')
@@ -465,7 +497,8 @@ if __name__ == '__main__':
             continue
 
         estimated_bus_data = estimate_business_stats(area_id, bus_counts,
-            bussiness_adoption, lookup, ap_coverage_area)
+            bussiness_adoption, lookup, ap_coverage_area_low,
+            ap_coverage_area_baseline, ap_coverage_area_high)
 
         directory = os.path.join(BASE_PATH, 'intermediate', 'hh_by_lad_msoa', lad_id)
         path_hh = os.path.join(directory, area_id + '.csv')
