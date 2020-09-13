@@ -69,6 +69,7 @@ def internet_access_by_business():
 
 def load_lookup(data):
     """
+    Load output area lookup.
 
     """
     output = {}
@@ -233,11 +234,6 @@ def estimate_business_stats(area_id, bus_counts, bussiness_adoption, lookup,
         'bafa_large': bfa_large,
         'bafa_very_large': bfa_very_large,
         'bafa_total': bfa_micro + bfa_small + bfa_medium + bfa_large + bfa_very_large,
-        # 'baps_micro': baps_micro_low,
-        # 'baps_small': baps_small_low,
-        # 'baps_medium': baps_medium_low,
-        # 'baps_large': baps_large_low,
-        # 'baps_very_large': baps_very_large_low,
         'baps_total_low': (
             baps_micro_low + baps_small_low + baps_medium_low +
             baps_large_low + baps_very_large_low),
@@ -286,6 +282,7 @@ def load_household_deomgraphics(folder, area_id, lookup, hh_adoption, lad_id):
 
 def estimate_hh_stats(area_id, hh_data, hh_adoption, lookup, lad_id):
     """
+    Estimate household Wi-Fi adoption.
 
     """
     region = lookup[area_id]['region'].lower().replace(' ', '')
@@ -364,6 +361,7 @@ def estimate_hh_stats(area_id, hh_data, hh_adoption, lookup, lad_id):
 
 def get_age(hh_head):
     """
+    Return the required category label for different ages.
 
     """
     if 16 <= hh_head['DC1117EW_C_AGE'] <= 24:
@@ -378,6 +376,7 @@ def get_age(hh_head):
 
 def aggregate_data(business_data, estimated_data, area_id, lookup, lad_id):
     """
+    Aggregate all data by output area ready for exporting.
 
     """
     area_km2 = lookup[area_id]['area_km2']
@@ -439,11 +438,6 @@ def aggregate_data(business_data, estimated_data, area_id, lookup, lad_id):
         'bafa_very_large': business_data['bafa_very_large'],
         'bafa_total': business_data['bafa_total'],
         #business access points - baps_
-        # 'baps_micro': business_data['baps_micro'],
-        # 'baps_small': business_data['baps_small'],
-        # 'baps_medium': business_data['baps_medium'],
-        # 'baps_large': business_data['baps_large'],
-        # 'baps_very_large': business_data['baps_very_large'],
         'baps_total_low': business_data['baps_total_low'],
         'baps_density_km2_low': business_data['baps_total_low'] / area_km2,
         'baps_total_baseline': business_data['baps_total_baseline'],
@@ -482,9 +476,6 @@ if __name__ == '__main__':
 
     print('Exporting adoption results')
     for area_id in tqdm(business_data.keys()):
-
-        # if not area_id == 'E02004555':
-        #     continue
 
         if area_id in lookup:
             lad_id = lookup[area_id]['lad']

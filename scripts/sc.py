@@ -142,6 +142,7 @@ def process_points(points, buffer_size):
 
 def get_geojson_buildings(loaded_buildings):
     """
+    Return loaded buildings as a geojson object.
 
     """
     output = []
@@ -253,7 +254,6 @@ def intersect_w_points(buffered_points, all_data, buildings, oa_data):
     buffered_points_aggregated.to_file(os.path.join(folder, 'merged.shp'), crs='epsg:27700')
 
     print('Total buffers {}'.format(len(buffered_points_aggregated)))
-    # buffered_points_aggregated = buffered_points_aggregated.loc[buffered_points_aggregated['floor_area'] > 0]
     print('Subset of buffers without rmdps data {}'.format(len(buffered_points_aggregated)))
 
     return buffered_points_aggregated
@@ -264,8 +264,6 @@ def collate_data(oa_data, area_data, buffer_sizes):
     Collect data from each area folder and place in a single csv.
 
     """
-    #collect all data and write out a single file.
-
     for buffer_size in buffer_sizes:
 
         all_data = []
@@ -312,7 +310,6 @@ if __name__ == '__main__':
     print('Loading a list of the areas with data')
     path = os.path.join(BASE_PATH, 'intermediate', 'oa_list.csv')
     oa_data = pd.read_csv(path)#[:1]
-    # oa_data = oa_data.iloc[::-1]
 
     print('Loading in area boundary shapes')
     path = os.path.join(BASE_PATH, 'intermediate', 'output_areas.shp')
@@ -357,9 +354,6 @@ if __name__ == '__main__':
 
             oa = row['msoa']
 
-            # if not oa == 'E02005481':
-            #     continue
-
             print('Creating a results folder (if one does not exist already)')
             folder = os.path.join(BASE_PATH, '..', 'results', str(oa))
             if not os.path.exists(folder):
@@ -367,15 +361,9 @@ if __name__ == '__main__':
 
             output_path = os.path.join(folder, 'oa_aps_buffered_{}.csv'.format(buffer_size))
 
-            # if os.path.exists(output_path):
-            #     continue
-
             print('-- Working on {} with {}m buffer'.format(oa, buffer_size))
 
             oa_geotype = area_data[oa]
-
-            # if not oa_geotype['lad'] == 'E07000008':
-            #     continue
 
             print('Getting output area boundary')
             path = os.path.join(folder, 'boundary.shp')
@@ -399,22 +387,22 @@ if __name__ == '__main__':
 
             print('Subsetting the collected points for the output area')
             collected_data = os.path.join(folder, 'collected_points.shp')
-            # if not os.path.exists(collected_data):
-            points_subset = all_data[all_data.intersects(boundary.unary_union)]
-            points_subset['netid_short'] = points_subset['network_id'].str[:20]
-            points_subset = points_subset.drop_duplicates('netid_short')
-            points_subset.to_file(collected_data, crs='epsg:27700')
-            # else:
-            #     points_subset = gpd.read_file(collected_data, crs='epsg:27700')
+            if not os.path.exists(collected_data):
+                points_subset = all_data[all_data.intersects(boundary.unary_union)]
+                points_subset['netid_short'] = points_subset['network_id'].str[:20]
+                points_subset = points_subset.drop_duplicates('netid_short')
+                points_subset.to_file(collected_data, crs='epsg:27700')
+            else:
+                points_subset = gpd.read_file(collected_data, crs='epsg:27700')
 
             print('Getting buffered points')
             collected_data = os.path.join(folder, 'buffered_points_{}.shp'.format(buffer_size))
-            # if not os.path.exists(collected_data):
-            print('Processing buffered points')
-            buffered_points = process_points(points_subset, buffer_size)
-            buffered_points.to_file(collected_data, crs='epsg:27700')
-            # else:
-            #     buffered_points = gpd.read_file(collected_data, crs='epsg:27700')
+            if not os.path.exists(collected_data):
+                print('Processing buffered points')
+                buffered_points = process_points(points_subset, buffer_size)
+                buffered_points.to_file(collected_data, crs='epsg:27700')
+            else:
+                buffered_points = gpd.read_file(collected_data, crs='epsg:27700')
 
             print('Subsetting the premises data for the output area')
             path = os.path.join(folder, 'buildings.shp')
@@ -448,7 +436,9 @@ if __name__ == '__main__':
                 oa_aps['msoa'] = oa
                 if len(oa_aps) > 0:
                     if not type(oa_aps) is str:
-                        oa_aps.to_file(os.path.join(folder, 'oa_aps_buffered_{}.shp'.format(buffer_size)), crs='epsg:27700')
+                        filename = 'oa_aps_buffered_{}.shp'.format(buffer_size)
+                        path_out = os.path.join(folder, filename)
+                        oa_aps.to_file(path_out, crs='epsg:27700')
                         oa_aps.to_csv(output_path, index=False)
                     else:
                         print('Unable to process {}'.format(oa))

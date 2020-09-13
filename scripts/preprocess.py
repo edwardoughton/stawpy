@@ -69,6 +69,7 @@ def process_shapes(path_output, path_ew, path_scot, lookup):
 
 def remove_small_shapes(x):
     """
+    Get rid of small geometries.
 
     """
     # if its a single polygon, just return the polygon geometry
@@ -82,7 +83,7 @@ def remove_small_shapes(x):
         area1 = 1e7
         area2 = 5e7
 
-        # dont remove shapes if total area is already very small
+        # don't remove shapes if total area is already very small
         if x.geometry.area < area1:
             return x.geometry
 

@@ -125,7 +125,6 @@ if __name__ == '__main__':
     shapes = shapes.to_crs('epsg:27700')
 
     print('Getting oa list')
-    #subset just cambridge postcodes for speed up
     valids = ['East of England', 'London', 'South East', 'South West',
         'East Midlands', 'Yorkshire and The Humber']
     shapes = shapes.loc[shapes['region'].str.startswith(tuple(valids))]

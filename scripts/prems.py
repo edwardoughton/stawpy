@@ -22,6 +22,7 @@ BASE_PATH = CONFIG['file_locations']['base_path']
 
 def subset_areas_with_data(oa_areas, oa_area_shapes):
     """
+    Only return those output area shapes for which we have data for.
 
     """
     shapes = []
@@ -52,6 +53,7 @@ def subset_areas_with_data(oa_areas, oa_area_shapes):
 
 def get_lad_list(lads, oa_points):
     """
+    Get a list of the local authority districts for which we have data for.
 
     """
     oa_points = gpd.overlay(oa_points, lads, how='intersection')
@@ -63,21 +65,22 @@ def get_lad_list(lads, oa_points):
 
 def get_oa_area_boundaries(lad_id, oa_points, oa_shapes):
     """
+    Return only the output area shapes in a single local authority district.
 
     """
-    pcd_subset = oa_points.loc[oa_points['name'] == lad_id]
+    subset = oa_points.loc[oa_points['name'] == lad_id]
 
-    pcds_in_lad_list = pcd_subset['msoa'].to_list()
+    oas_in_lad_list = subset['msoa'].to_list()
 
     oa_shapes_subset = []
 
-    for idx, pcd_shape in oa_shapes.iterrows():
-        if pcd_shape['msoa'] in pcds_in_lad_list:
+    for idx, oa_shape in oa_shapes.iterrows():
+        if oa_shape['msoa'] in oas_in_lad_list:
             oa_shapes_subset.append({
                 'type': 'Feature',
-                'geometry': mapping(pcd_shape['geometry']),
+                'geometry': mapping(oa_shape['geometry']),
                 'properties': {
-                    'msoa': pcd_shape['msoa'],
+                    'msoa': oa_shape['msoa'],
                 }
             })
 
@@ -109,14 +112,9 @@ if __name__ == '__main__':
 
     for lad_id in lad_list:
 
-        # if not lad_id == 'E07000008':
-        #     continue
-
         print('Loading data for {}'.format(lad_id))
 
         path = os.path.join(BASE_PATH, 'prems_by_lad', lad_id)
-
-        # if not os.path.exists(path):
 
         prems_by_lad = []
 
@@ -153,9 +151,6 @@ if __name__ == '__main__':
 
         for oa_shape_id in oa_shapes_subset['msoa'].unique():
 
-            # if not oa_shape_id == 'E02003731':
-            #     continue
-
             path = os.path.join(lad_folder, oa_shape_id + '.csv')
 
             if not os.path.exists(path):
@@ -167,6 +162,3 @@ if __name__ == '__main__':
                 prems_within_oa = gpd.overlay(prems_by_lad, curent_oa, how='intersection')
 
                 prems_within_oa.to_csv(path, index=False)
-
-                # path = os.path.join(BASE_PATH, 'intermediate', 'prems', lad_id, oa_shape_id + '.shp')
-                # prems_within_oa.to_file(path, crs='epsg:27700')
