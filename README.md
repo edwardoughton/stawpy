@@ -1,8 +1,8 @@
 # wawpy
-Wardriving Analytics for WiFi with Python (wawpy)
+Wardriving Analytics for Wi-Fi with Python (wawpy)
 
 ### Description
-This repo provides code to develop estimated WiFi analytics using data collected by
+This repo provides code to develop estimated Wi-Fi analytics using data collected by
 'wardriving'.
 
 According to [Wikipedia](https://en.wikipedia.org/wiki/Wardriving):
@@ -67,9 +67,9 @@ to the `results` folder.
 Finally, the `vis_sc.py` script will take the self-collected data for all OAs, and then
 produce a set of plotted visualizations.
 
-### Running the scripts for estimating national WiFi availability
+### Running the scripts for estimating national Wi-Fi availability
 
-To make a national estimate of fixed broadband adoption and WiFi availability, for all OAs
+To make a national estimate of fixed broadband adoption and Wi-Fi availability, for all OAs
 using national statistics (ns), run:
 
 - scripts/ns.py
