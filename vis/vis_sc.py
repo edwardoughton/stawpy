@@ -79,7 +79,7 @@ def histograms(data, folder, buffer_size):
     data.columns = [
         'AP Count',
         # 'Wigle APs (km^2)',
-        'Building Count',
+        'Premises Count',
         # 'Building Density (km^2)',
         # 'Resident Count',
         # 'Resident Density (HHs per km^2)',
@@ -98,11 +98,11 @@ def histograms(data, folder, buffer_size):
 
     data = data.drop_duplicates()
 
-    max_value = max(data['Building Count'])
+    max_value = max(data['Premises Count'])
     bins = list(range(0, int(max_value), int(max_value/10)))
-    data['Building Count by Decile'] =  pd.cut(data['Building Count'], bins)
+    data['Premises Count by Decile'] =  pd.cut(data['Premises Count'], bins)
 
-    catplot = sns.catplot(x="Building Count by Decile",
+    catplot = sns.catplot(x="Premises Count by Decile",
         y='AP Count',
         # hue=source_label,
         col='Buffer Size (m)',
@@ -123,7 +123,7 @@ def histograms(data, folder, buffer_size):
     plt.tight_layout()
 
     #export
-    path = os.path.join(folder, "hist_catplot_building_count.png")
+    path = os.path.join(folder, "hist_catplot_premises_count.png")
     catplot.savefig(path)
 
 
