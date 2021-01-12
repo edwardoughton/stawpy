@@ -452,9 +452,9 @@ if __name__ == '__main__':
     print('----Working on estimating business adoption')
     print('----')
 
-    ap_coverage_area_low = 25
-    ap_coverage_area_baseline = 50
-    ap_coverage_area_high = 100
+    ap_coverage_area_low = 50
+    ap_coverage_area_baseline = 100
+    ap_coverage_area_high = 200
 
     print('Loading local business counts')
     path = os.path.join(BASE_PATH, 'ons_local_business_counts', 'business_counts.csv')
