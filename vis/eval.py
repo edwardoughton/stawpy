@@ -1,6 +1,10 @@
 """
 Visualize the model results performance against real data.
 
+Written by Ed Oughton.
+
+December 2020.
+
 """
 import os
 import sys
@@ -20,29 +24,33 @@ def load_data():
     Load evaluation data.
 
     """
-    path = os.path.join(VIS_PATH, 'evaluation', 'real_data_50.csv')
+    path = os.path.join(VIS_PATH, 'evaluation', 'real_data.csv')
 
     data = pd.read_csv(path)
 
     return data
 
 
-def process_data(data):
+def process_data(data, ap_coverage_area_baseline):
     """
     Process evaluation data.
 
     """
-    data['predicted_200'] = round(data['Gross Internal Area (GIA) (m^2)'] / 200)
+    data['predicted_200'] = round(
+        data['Gross Internal Area (GIA) (m^2)'] /
+        ap_coverage_area_baseline
+    )
 
     return data
 
 
-def plot(data):
+def plot(data, ap_coverage_area_baseline):
     """
     Plot data.
 
     """
     data = data.sort_values(by=['AP Count'])#[:30]
+
     data['Rank'] = data['AP Count'].rank(method='first', ascending=True)
 
     data['Rank'] = data['Rank'].astype('int')
@@ -60,24 +68,31 @@ def plot(data):
     data = data.sort_values(by=['Rank'])
 
     ax = sns.catplot(
-        x='Rank',
-        y='value',
+        x='value',
+        y='Rank',
         hue='variable',
         data=data,
         palette=['black', 'red'],
         ci=None,
-        legend=None
+        legend=None,
+        orient='h',
+        jitter=False
+    )
+
+    title = 'Evaluating Predicted versus Actual \n Wi-Fi APs ({}m)'.format(
+        ap_coverage_area_baseline
     )
 
     ax.set(
-        title='Evaluating Predicted versus Actual Wi-Fi APs',
-        xlabel='Rank',
-        ylabel='Number of Wi-Fi APs per Building'
+        title=title,
+        xlabel='Number of Wi-Fi APs per Building',
+        ylabel='Rank',
     )
-    plt.legend(loc='upper left')
-    ax.fig.set_figwidth(10)
-    ax.fig.set_figheight(5)
-    ax.set_xticklabels(rotation=90)
+
+    plt.legend(loc='upper right')
+
+    ax.fig.set_figwidth(4)
+    ax.fig.set_figheight(7)
     plt.tight_layout()
 
     path = os.path.join(VIS_PATH, 'figures', 'predicted_vs_real.png')
@@ -86,8 +101,10 @@ def plot(data):
 
 if __name__ == '__main__':
 
+    ap_coverage_area_baseline = 200
+
     data = load_data()
 
-    data = process_data(data)
+    data = process_data(data, ap_coverage_area_baseline)
 
-    plot(data)
+    plot(data, ap_coverage_area_baseline)
