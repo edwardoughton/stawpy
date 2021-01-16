@@ -1,7 +1,7 @@
 """
 Visualize all  data.
 
-Written by Ed Oughton
+Written by Ed Oughton.
 
 July 2020
 
@@ -10,7 +10,6 @@ import os
 import sys
 import configparser
 import csv
-# import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -94,7 +93,7 @@ def process_sc_data(data):
 
     data = data.to_dict('records')
 
-    for area in unique_areas:#[:1]:
+    for area in unique_areas:
 
         n = 0
         floor_area = 0
@@ -150,9 +149,9 @@ def add_lut_data_to_sc(data, lookup):
     return output
 
 
-def histograms_by_urban_rural(data, folder, buffer_size): #urban_rural, bins
+def catplot_by_urban_rural(data, folder, buffer_size):
     """
-    Generate histograms for urban and rural areas.
+    Generate category plots for urban and rural areas.
 
     """
     data = data[[
@@ -170,23 +169,25 @@ def histograms_by_urban_rural(data, folder, buffer_size): #urban_rural, bins
     data.loc[data['urban_rural'] == 'suburban', 'urban_rural'] = 'Suburban'
     data.loc[data['urban_rural'] == 'rural', 'urban_rural'] = 'Rural'
 
-    # data = data[data['urban_rural'] == urban_rural]
+    data = data.drop(
+        data[(data['urban_rural']=='Urban') &
+        (data['total_prems']==0)].index
+    )
 
     wardriving_data = data[data['source'] == 'Wardriving']
     unique_wardriving_areas = wardriving_data['msoa'].unique()
 
     data = data[data['msoa'].isin(unique_wardriving_areas)]
 
-    data = data.drop_duplicates()
+    data = data.sort_values('msoa').drop_duplicates(
+        subset=['msoa', 'source', 'buffer_size'], keep='last'
+    )
 
-    # bins = [round(x/1e3,1) for x in bins]
-    # data['total_prems_density_km2_decile'] =  pd.cut(
-    #     data['total_prems_density_km2'] / 1e3, bins)
+    labels = ["1","2","3","4","5","6","7","8","9","10"]
 
-    max_value = max(data['total_prems_density_km2'])
-    bins = list(range(0, int(max_value), int(max_value/10)))
-    data['total_prems_density_km2_decile'] =  pd.cut(
-        data['total_prems_density_km2'], bins)
+    data['total_prems_density_km2_decile'] = data.groupby(['source', 'buffer_size']
+        )[['total_prems_density_km2']].transform(
+        lambda x: pd.qcut(x, 10, labels=labels).astype(str))
 
     path = os.path.join(BASE_PATH, '..', 'vis', 'all_data_to_plot.csv')
     data.to_csv(path, index=False)
@@ -204,32 +205,37 @@ def histograms_by_urban_rural(data, folder, buffer_size): #urban_rural, bins
     data.rename(
         columns = {
             'urban_rural': 'Geotype',
-            'total_prems_density_km2_decile': 'Premises Density by Decile (per km^2)',
+            'total_prems_density_km2_decile': 'Premises Density by Decile',
             'number_of_aps_density_km2': 'AP Density (km^2)',
             'source': source_label,
             'buffer_size': 'Buffer Size (m)'
             }, inplace = True)
 
-    catplot = sns.catplot(x="Premises Density by Decile (per km^2)",
+    catplot = sns.catplot(
+        x="Premises Density by Decile",
         y='AP Density (km^2)',
         hue=source_label,
         col='Buffer Size (m)',
         row="Geotype",
         row_order=['Urban', 'Suburban', 'Rural'],
-        capsize=.2,
-        height=6, aspect=.75,
         sharey=True, sharex=False,
         kind="point",
+        marker=["x", "o"],
         data=data,
         legend_out=True,
-        palette=sns.color_palette(['red', 'black'])
+        palette=sns.color_palette(['red', 'black']),
+        order=labels
         )
 
-    catplot.set_xticklabels(rotation=45)
-    plt.tight_layout()
+    sns.set(font_scale=1)
 
-    #export
-    path = os.path.join(folder, "hist_catplot_prem_density.png")
+    catplot.fig.tight_layout()
+    catplot.fig.set_figwidth(10)
+    catplot.fig.set_figheight(8)
+
+    plt.subplots_adjust(hspace=0.3, wspace=0.3)
+
+    path = os.path.join(folder, "ap_density.png")
     catplot.savefig(path)
 
 
@@ -238,15 +244,15 @@ if __name__ == '__main__':
     print('Loading area lut')
     filename = 'oa_lookup.csv'
     path = os.path.join(BASE_PATH, 'intermediate', filename)
-    lookup = pd.read_csv(path)#[:20]
+    lookup = pd.read_csv(path)
     lookup = process_lookup(lookup)
 
     buffer_sizes = [
         100,
         200,
         300,
-        # 400
         ]
+
     ap_coverage_levels = [
         'low',
         'baseline',
@@ -264,7 +270,7 @@ if __name__ == '__main__':
             print('Working on AP coverage: {}'.format(ap_coverage))
 
             path = os.path.join(RESULTS_PATH, 'estimated_adoption_ns.csv')
-            data_ns = pd.read_csv(path)#[:50]
+            data_ns = pd.read_csv(path)
             data_ns = data_ns.to_dict('records')
             data_ns = add_lut_data_to_ns(data_ns, lookup, ap_coverage)
             data_ns = pd.DataFrame(data_ns)
@@ -277,7 +283,7 @@ if __name__ == '__main__':
 
             filename = 'all_buffered_points_{}m.csv'.format(buffer_size)
             path = os.path.join(RESULTS_PATH, filename)
-            data_sc = pd.read_csv(path)#[:50]
+            data_sc = pd.read_csv(path)
             data_sc = process_sc_data(data_sc)
             data_sc = add_lut_data_to_sc(data_sc, lookup)
             data_sc = data_sc[['msoa', 'urban_rural', 'total_prems',
@@ -294,11 +300,10 @@ if __name__ == '__main__':
     path = os.path.join(BASE_PATH, '..', 'vis', 'all_data_to_plot.csv')
     all_data.to_csv(path, index=False)
 
-    print('Plot histograms')
+    print('Plot catplots')
     folder = os.path.join(BASE_PATH, '..', 'vis', 'figures')
 
-    bins = list(range(0, 2000, 500))
-    histograms_by_urban_rural(all_data, folder, buffer_size)
+    catplot_by_urban_rural(all_data, folder, buffer_size)
 
     print('Completed')
     print('---------')
